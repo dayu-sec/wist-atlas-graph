@@ -13,6 +13,7 @@ import {
 } from '../display/build-display-graph';
 import { buildSearchIndex, countMatches } from '../utils/search';
 import { buildTelemetry } from '../utils/telemetry';
+import { classifyProcessName } from '../utils/process-kind';
 import { countHealth, freshnessStatus, resolveNodeStatus } from '../utils/status';
 import { loadFixture as loadLocalFixture } from '../api/client';
 import type { AtlasClient } from '../api/client';
@@ -87,6 +88,8 @@ export type TopologyViewState = {
   serviceCount: number;
   hostCount: number;
   topGroups: { name: string; count: number }[];
+  /** 资产卡的「高频进程」列表按归属过滤后藏掉了几个。 */
+  topGroupsHidden: number;
   /** 总览时每台主机卡上的规模：来自主机列表（`GET /hosts`），不用逐台再拉一次资产卡。 */
   hostMetrics: Record<string, { segments: number; processes: number }>;
 
@@ -107,7 +110,12 @@ export type TopologyViewState = {
 
 export function useTopologyView(options: TopologyViewOptions): TopologyViewState {
   const { client, initialHostId = '', demo = false, fixture, handleEscape = true } = options;
-  const [state, dispatch] = useAppState();
+  const [state, dispatch] = useAppState({ processFilter: readStoredFilter() });
+
+  // 过滤是「我平时就想先看用户进程」这类偏好：记住它，下次进来不用再点。
+  useEffect(() => {
+    writeStoredFilter(state.processFilter);
+  }, [state.processFilter]);
   const [hostId, setHostId] = useState(initialHostId);
   const [hosts, setHosts] = useState<HostSummaryDto[]>([]);
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set());
@@ -449,13 +457,37 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     return metrics;
   }, [hosts]);
 
+  const allTopGroups = state.hostTopology?.processGroups ?? [];
   const topGroups = useMemo(
     () =>
-      (state.hostTopology?.processGroups ?? []).slice(0, 5).map((group) => ({
-        name: String(group.display_name ?? group.executable ?? '-'),
-        count: Number(group.process_count ?? 0),
-      })),
-    [state.hostTopology],
+      allTopGroups
+        .filter(
+          (group) =>
+            state.processFilter === 'all' ||
+            classifyProcessName(String(group.executable ?? ''), String(group.display_name ?? '')) ===
+              state.processFilter,
+        )
+        .slice(0, 5)
+        .map((group) => ({
+          name: String(group.display_name ?? group.executable ?? '-'),
+          count: Number(group.process_count ?? 0),
+        })),
+    // allTopGroups 的身份随 hostTopology 变，不需要单独进依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.hostTopology, state.processFilter],
+  );
+
+  const topGroupsHidden = useMemo(
+    () =>
+      state.processFilter === 'all'
+        ? 0
+        : allTopGroups.filter(
+            (group) =>
+              classifyProcessName(String(group.executable ?? ''), String(group.display_name ?? '')) !==
+              state.processFilter,
+          ).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [state.hostTopology, state.processFilter],
   );
 
   const scannedAt = state.hostTopology?.generatedAt ?? displayGraph?.metadata?.queryTime ?? null;
@@ -534,6 +566,7 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     serviceCount,
     hostCount,
     topGroups,
+    topGroupsHidden,
     hostMetrics,
     refresh: loadData,
     setHostId: openHost,
@@ -548,4 +581,24 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     openService,
     clearError: () => dispatch({ type: 'FETCH_GRAPH_ERROR', error: '' }),
   };
+}
+
+const PROCESS_FILTER_KEY = 'wist-atlas-process-filter';
+
+function readStoredFilter(): 'all' | 'user' | 'system' {
+  try {
+    const value = window.localStorage.getItem(PROCESS_FILTER_KEY);
+    if (value === 'all' || value === 'user' || value === 'system') return value;
+  } catch {
+    // 隐私模式下读不到就按默认
+  }
+  return 'all';
+}
+
+function writeStoredFilter(filter: 'all' | 'user' | 'system'): void {
+  try {
+    window.localStorage.setItem(PROCESS_FILTER_KEY, filter);
+  } catch {
+    // 存不下不影响本次会话
+  }
 }

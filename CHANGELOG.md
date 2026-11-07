@@ -4,6 +4,16 @@
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.3] - 2026-11-07
+
+### Added
+
+- **过滤偏好持久化**：进程归属过滤写进 `localStorage`（`wist-atlas-process-filter`），
+  下次打开仍按上次的选择；读写失败时静默回落到「全部」。
+- **资产卡的「高频进程」跟随过滤**：只列当前归属的 Top 5，并在标题旁标出「已隐藏 N 个」；
+  全被过滤时给的是「当前过滤下没有进程分组」，而不是「暂无数据」。
+- 导出 `classifyProcessName(executable, display)`，供不经过画布节点的场景复用同一套判据。
+
 ## [0.4.2] - 2026-11-07
 
 ### Added

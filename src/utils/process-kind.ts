@@ -88,6 +88,11 @@ function looksLikeSystem(executable: string, label: string): boolean {
   return false;
 }
 
+/** 只有名字（可执行文件 / 显示名）时的归属判断，资产卡的「高频进程」列表也用它。 */
+export function classifyProcessName(executable: string, display = ''): ProcessKind {
+  return looksLikeSystem(executable, display || executable) ? 'system' : 'user';
+}
+
 /** 进程分组 / 进程节点的归属。非进程节点一律返回 `user`（不参与过滤）。 */
 export function classifyProcessKind(node: HostProcessTopologyNode): ProcessKind {
   if (node.objectKind !== 'ProcessGroup' && node.objectKind !== 'ProcessRuntime') return 'user';

@@ -58,6 +58,6 @@ function reducer(state: AppState, action: AppAction): AppState {
   }
 }
 
-export function useAppState() {
-  return useReducer(reducer, initialState);
+export function useAppState(initial: Partial<AppState> = {}) {
+  return useReducer(reducer, { ...initialState, ...initial });
 }
