@@ -76,6 +76,7 @@ export type TopologyViewState = {
   searchQuery: string;
   matchCount: number | null;
   layerVisibility: Record<LayerKind, boolean>;
+  processFilter: 'all' | 'user' | 'system';
   processViewMode: ReturnType<typeof getProcessViewMode>;
   loadedProcessGroups: LoadedProcessGroupsState | null;
 
@@ -98,6 +99,7 @@ export type TopologyViewState = {
   clearFocus: () => void;
   setSearch: (query: string) => void;
   toggleLayer: (layer: LayerKind) => void;
+  setProcessFilter: (filter: 'all' | 'user' | 'system') => void;
   openNetwork: (segmentObjectId: string) => void;
   openService: (serviceObjectId: string) => void;
   clearError: () => void;
@@ -523,6 +525,7 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     searchQuery: state.searchQuery,
     matchCount,
     layerVisibility: state.layerVisibility,
+    processFilter: state.processFilter,
     processViewMode: getProcessViewMode(selectedNode, loadedGroupsByHost, groupPageLoadingByHost),
     loadedProcessGroups: getSelectedLoadedProcessGroups(selectedNode, loadedGroupsByHost),
     segmentCount,
@@ -540,6 +543,7 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     clearFocus,
     setSearch: (query) => dispatch({ type: 'SET_SEARCH', query }),
     toggleLayer: (layer) => dispatch({ type: 'TOGGLE_LAYER', layer }),
+    setProcessFilter: (filter) => dispatch({ type: 'SET_PROCESS_FILTER', filter }),
     openNetwork,
     openService,
     clearError: () => dispatch({ type: 'FETCH_GRAPH_ERROR', error: '' }),

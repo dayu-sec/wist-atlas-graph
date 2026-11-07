@@ -15,6 +15,7 @@ const initialState: AppState = {
   focusNodeId: null,
   layerVisibility: { ...initialLayerVisibility },
   searchQuery: '',
+  processFilter: 'all',
 };
 
 function reducer(state: AppState, action: AppAction): AppState {
@@ -50,6 +51,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       };
     case 'SET_SEARCH':
       return { ...state, searchQuery: action.query };
+    case 'SET_PROCESS_FILTER':
+      return { ...state, processFilter: action.filter };
     default:
       return state;
   }

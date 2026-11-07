@@ -9,6 +9,10 @@ type Props = {
   layers: LayerKind[];
   onToggleLayer: (layer: LayerKind) => void;
   matchCount: number | null;
+  /** 进程归属过滤（只有图里出现进程分组/进程时才显示）。 */
+  showProcessFilter?: boolean;
+  processFilter?: 'all' | 'user' | 'system';
+  onProcessFilterChange?: (filter: 'all' | 'user' | 'system') => void;
 };
 
 /**
@@ -27,6 +31,9 @@ export default function CanvasToolbar({
   layers,
   onToggleLayer,
   matchCount,
+  showProcessFilter = false,
+  processFilter = 'all',
+  onProcessFilterChange,
 }: Props) {
   return (
     <div className="floating-bar pointer-events-auto flex h-10 items-center gap-0.5 rounded-[11px] px-1">
@@ -75,6 +82,38 @@ export default function CanvasToolbar({
           </button>
         );
       })}
+
+      {showProcessFilter ? (
+        <>
+          <span className="mx-0.5 h-4 w-px bg-line" aria-hidden />
+          <div className="flex items-center gap-0.5" role="group" aria-label="进程归属">
+            {(
+              [
+                { value: 'all', label: '全部', hint: '用户进程与系统进程都显示' },
+                { value: 'user', label: '用户', hint: '只看用户进程（藏起 com.apple.* / launchd 这类）' },
+                { value: 'system', label: '系统', hint: '只看系统进程' },
+              ] as const
+            ).map((option) => {
+              const active = processFilter === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onProcessFilterChange?.(option.value)}
+                  data-active={active}
+                  title={option.hint}
+                  aria-pressed={active}
+                  className={`flex h-7 items-center rounded-[7px] px-2 text-[11px] transition-colors ${
+                    active ? 'bg-canvas text-ink-soft' : 'text-ink-faint hover:bg-canvas'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
 
     </div>
   );

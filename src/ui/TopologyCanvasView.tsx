@@ -46,6 +46,7 @@ export default function TopologyCanvasView({ view, theme, className = '' }: Prop
           onExpandNode={view.expandNode}
           searchQuery={view.searchQuery}
           layerVisibility={view.layerVisibility}
+          processFilter={view.processFilter}
           scannedAt={view.scannedAt}
           hostArch={view.hostTopology?.host.arch ?? null}
           loading={view.loading}
@@ -66,6 +67,13 @@ export default function TopologyCanvasView({ view, theme, className = '' }: Prop
             layers={view.layers}
             onToggleLayer={view.toggleLayer}
             matchCount={view.matchCount}
+            showProcessFilter={view.kinds.includes('ProcessGroup') || view.kinds.includes('ProcessRuntime')}
+            processFilter={view.processFilter}
+            onProcessFilterChange={(filter) => {
+              view.setProcessFilter(filter);
+              // 被过滤掉的节点不该继续占着详情抽屉。
+              view.selectNode(null);
+            }}
           />
         </div>
 

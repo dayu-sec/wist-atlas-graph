@@ -4,6 +4,17 @@
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.4.2] - 2026-11-07
+
+### Added
+
+- **进程归属分类与快速过滤**：`classifyProcessKind` / `passesProcessFilter` ——
+  macOS 的 `com.apple.*`、`launchd`、`/System|/usr/libexec|/usr/sbin`、Linux 的 `systemd-*`、
+  内核线程（`kworker/0:1` / `[kworker/0:1]`）都归为「系统进程」；认不出的算用户进程。
+- 画布工具条新增 **全部 / 用户 / 系统** 三档过滤（只有图里出现进程时才显示）。
+  切换时清掉当前选中，避免详情抽屉停在一个已被过滤掉的节点上。
+- 4 条单测覆盖 macOS / Linux / 用户程序 / 过滤边界。
+
 ## [0.4.1] - 2026-11-07
 
 ### Added

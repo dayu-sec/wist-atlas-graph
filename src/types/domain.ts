@@ -219,6 +219,8 @@ export type AppState = {
   focusNodeId: string | null;
   layerVisibility: Record<LayerKind, boolean>;
   searchQuery: string;
+  /** 进程归属过滤：全部 / 只看用户进程 / 只看系统进程。 */
+  processFilter: 'all' | 'user' | 'system';
 };
 
 export type AppAction =
@@ -232,7 +234,8 @@ export type AppAction =
   | { type: 'FOCUS_NODE'; nodeId: string }
   | { type: 'CLEAR_FOCUS' }
   | { type: 'TOGGLE_LAYER'; layer: LayerKind }
-  | { type: 'SET_SEARCH'; query: string };
+  | { type: 'SET_SEARCH'; query: string }
+  | { type: 'SET_PROCESS_FILTER'; filter: 'all' | 'user' | 'system' };
 
 // ---- Cytoscape element data extensions ----
 export type CyNodeData = {

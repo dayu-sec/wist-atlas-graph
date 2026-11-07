@@ -14,6 +14,7 @@ export * from './utils/telemetry';
 export * from './utils/search';
 export * from './utils/colors';
 export * from './utils/format';
+export * from './utils/process-kind';
 export * from './utils/focus-layout';
 export * from './display/build-display-graph';
 export * from './api/client';

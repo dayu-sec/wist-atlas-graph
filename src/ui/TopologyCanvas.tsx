@@ -14,7 +14,7 @@ import {
   type LaneAnnotation,
 } from '../index';
 import { nodeDims } from '../index';
-import { resolveNodeStatus, type NodeStatus } from '../index';
+import { passesProcessFilter, resolveNodeStatus, type NodeStatus } from '../index';
 import type { TelemetryMap } from '../index';
 import NodeCard, { type GraphNodeHint, type HostStats } from './NodeCard';
 import { FitIcon, MinusIcon, PlusIcon } from './icons';
@@ -29,6 +29,8 @@ type Props = {
   onExpandNode: (nodeId: string) => void;
   searchQuery: string;
   layerVisibility: Record<LayerKind, boolean>;
+  /** 进程归属过滤：系统进程太多时先藏起来。 */
+  processFilter?: 'all' | 'user' | 'system';
   scannedAt?: string | null;
   hostArch?: string | null;
   loading: boolean;
@@ -153,6 +155,7 @@ export default function TopologyCanvas({
   onExpandNode,
   searchQuery,
   layerVisibility,
+  processFilter = 'all',
   scannedAt,
   hostArch,
   loading,
@@ -182,11 +185,13 @@ export default function TopologyCanvas({
    */
   const visibleGraph = useMemo(() => {
     if (!graph) return null;
-    const nodes = graph.nodes.filter((node) => layerVisibility[node.layer]);
+    const nodes = graph.nodes.filter(
+      (node) => layerVisibility[node.layer] && passesProcessFilter(node, processFilter),
+    );
     const ids = new Set(nodes.map((node) => node.id));
     const edges = graph.edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target));
     return { nodes, edges, metadata: graph.metadata } satisfies HostProcessTopologyGraph;
-  }, [graph, layerVisibility]);
+  }, [graph, layerVisibility, processFilter]);
 
   /**
    * App 每次渲染（包括选中节点）都会重建 graph 对象。如果 effect 直接依赖它，
