@@ -221,6 +221,8 @@ export type AppState = {
   searchQuery: string;
   /** 进程归属过滤：全部 / 只看用户进程 / 只看系统进程。 */
   processFilter: 'all' | 'user' | 'system';
+  /** 网段归属过滤：全部 / 共享网段 / 本机内部（回环、链路本地、虚拟网桥）。 */
+  networkFilter: 'all' | 'shared' | 'host';
 };
 
 export type AppAction =
@@ -235,7 +237,8 @@ export type AppAction =
   | { type: 'CLEAR_FOCUS' }
   | { type: 'TOGGLE_LAYER'; layer: LayerKind }
   | { type: 'SET_SEARCH'; query: string }
-  | { type: 'SET_PROCESS_FILTER'; filter: 'all' | 'user' | 'system' };
+  | { type: 'SET_PROCESS_FILTER'; filter: 'all' | 'user' | 'system' }
+  | { type: 'SET_NETWORK_FILTER'; filter: 'all' | 'shared' | 'host' };
 
 // ---- Cytoscape element data extensions ----
 export type CyNodeData = {

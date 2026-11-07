@@ -16,6 +16,7 @@ const initialState: AppState = {
   layerVisibility: { ...initialLayerVisibility },
   searchQuery: '',
   processFilter: 'all',
+  networkFilter: 'all',
 };
 
 function reducer(state: AppState, action: AppAction): AppState {
@@ -53,6 +54,8 @@ function reducer(state: AppState, action: AppAction): AppState {
       return { ...state, searchQuery: action.query };
     case 'SET_PROCESS_FILTER':
       return { ...state, processFilter: action.filter };
+    case 'SET_NETWORK_FILTER':
+      return { ...state, networkFilter: action.filter };
     default:
       return state;
   }

@@ -14,7 +14,7 @@ import {
   type LaneAnnotation,
 } from '../index';
 import { nodeDims } from '../index';
-import { passesProcessFilter, resolveNodeStatus, type NodeStatus } from '../index';
+import { passesNetworkFilter, passesProcessFilter, resolveNodeStatus, type NodeStatus } from '../index';
 import type { TelemetryMap } from '../index';
 import NodeCard, { type GraphNodeHint, type HostStats } from './NodeCard';
 import { FitIcon, MinusIcon, PlusIcon } from './icons';
@@ -31,6 +31,8 @@ type Props = {
   layerVisibility: Record<LayerKind, boolean>;
   /** 进程归属过滤：系统进程太多时先藏起来。 */
   processFilter?: 'all' | 'user' | 'system';
+  /** 网段归属过滤：本机内部（lo / 链路本地 / 虚拟网桥）可以单独看。 */
+  networkFilter?: 'all' | 'shared' | 'host';
   scannedAt?: string | null;
   hostArch?: string | null;
   loading: boolean;
@@ -156,6 +158,7 @@ export default function TopologyCanvas({
   searchQuery,
   layerVisibility,
   processFilter = 'all',
+  networkFilter = 'all',
   scannedAt,
   hostArch,
   loading,
@@ -183,15 +186,21 @@ export default function TopologyCanvas({
   /**
    * 先按图层过滤，再布局 —— 隐藏的节点如果还参与布局，画布上会留下看不见的空洞。
    */
+  // 接口名在 `host_network_assoc` 的边上：网段分类要用它判断「本机内部」。
+  const ifaceByNodeId = useMemo(() => buildNetworkHints(graph), [graph]);
+
   const visibleGraph = useMemo(() => {
     if (!graph) return null;
     const nodes = graph.nodes.filter(
-      (node) => layerVisibility[node.layer] && passesProcessFilter(node, processFilter),
+      (node) =>
+        layerVisibility[node.layer] &&
+        passesProcessFilter(node, processFilter) &&
+        passesNetworkFilter(node, networkFilter, ifaceByNodeId.get(node.id)?.ifaceName),
     );
     const ids = new Set(nodes.map((node) => node.id));
     const edges = graph.edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target));
     return { nodes, edges, metadata: graph.metadata } satisfies HostProcessTopologyGraph;
-  }, [graph, layerVisibility, processFilter]);
+  }, [graph, layerVisibility, processFilter, networkFilter, ifaceByNodeId]);
 
   /**
    * App 每次渲染（包括选中节点）都会重建 graph 对象。如果 effect 直接依赖它，

@@ -78,6 +78,7 @@ export type TopologyViewState = {
   matchCount: number | null;
   layerVisibility: Record<LayerKind, boolean>;
   processFilter: 'all' | 'user' | 'system';
+  networkFilter: 'all' | 'shared' | 'host';
   processViewMode: ReturnType<typeof getProcessViewMode>;
   loadedProcessGroups: LoadedProcessGroupsState | null;
 
@@ -103,6 +104,7 @@ export type TopologyViewState = {
   setSearch: (query: string) => void;
   toggleLayer: (layer: LayerKind) => void;
   setProcessFilter: (filter: 'all' | 'user' | 'system') => void;
+  setNetworkFilter: (filter: 'all' | 'shared' | 'host') => void;
   openNetwork: (segmentObjectId: string) => void;
   openService: (serviceObjectId: string) => void;
   clearError: () => void;
@@ -110,12 +112,19 @@ export type TopologyViewState = {
 
 export function useTopologyView(options: TopologyViewOptions): TopologyViewState {
   const { client, initialHostId = '', demo = false, fixture, handleEscape = true } = options;
-  const [state, dispatch] = useAppState({ processFilter: readStoredFilter() });
+  const [state, dispatch] = useAppState({
+    processFilter: readStoredFilter(PROCESS_FILTER_KEY, PROCESS_FILTERS),
+    networkFilter: readStoredFilter(NETWORK_FILTER_KEY, NETWORK_FILTERS),
+  });
 
   // 过滤是「我平时就想先看用户进程」这类偏好：记住它，下次进来不用再点。
   useEffect(() => {
-    writeStoredFilter(state.processFilter);
+    writeStoredFilter(PROCESS_FILTER_KEY, state.processFilter);
   }, [state.processFilter]);
+
+  useEffect(() => {
+    writeStoredFilter(NETWORK_FILTER_KEY, state.networkFilter);
+  }, [state.networkFilter]);
   const [hostId, setHostId] = useState(initialHostId);
   const [hosts, setHosts] = useState<HostSummaryDto[]>([]);
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set());
@@ -558,6 +567,7 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     matchCount,
     layerVisibility: state.layerVisibility,
     processFilter: state.processFilter,
+    networkFilter: state.networkFilter,
     processViewMode: getProcessViewMode(selectedNode, loadedGroupsByHost, groupPageLoadingByHost),
     loadedProcessGroups: getSelectedLoadedProcessGroups(selectedNode, loadedGroupsByHost),
     segmentCount,
@@ -577,27 +587,31 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     setSearch: (query) => dispatch({ type: 'SET_SEARCH', query }),
     toggleLayer: (layer) => dispatch({ type: 'TOGGLE_LAYER', layer }),
     setProcessFilter: (filter) => dispatch({ type: 'SET_PROCESS_FILTER', filter }),
+    setNetworkFilter: (filter) => dispatch({ type: 'SET_NETWORK_FILTER', filter }),
     openNetwork,
     openService,
     clearError: () => dispatch({ type: 'FETCH_GRAPH_ERROR', error: '' }),
   };
 }
 
+const PROCESS_FILTERS = ['all', 'user', 'system'] as const;
+const NETWORK_FILTERS = ['all', 'shared', 'host'] as const;
 const PROCESS_FILTER_KEY = 'wist-atlas-process-filter';
+const NETWORK_FILTER_KEY = 'wist-atlas-network-filter';
 
-function readStoredFilter(): 'all' | 'user' | 'system' {
+function readStoredFilter<T extends string>(key: string, allowed: readonly T[]): T | 'all' {
   try {
-    const value = window.localStorage.getItem(PROCESS_FILTER_KEY);
-    if (value === 'all' || value === 'user' || value === 'system') return value;
+    const value = window.localStorage.getItem(key);
+    if (value && (allowed as readonly string[]).includes(value)) return value as T;
   } catch {
     // 隐私模式下读不到就按默认
   }
   return 'all';
 }
 
-function writeStoredFilter(filter: 'all' | 'user' | 'system'): void {
+function writeStoredFilter(key: string, filter: string): void {
   try {
-    window.localStorage.setItem(PROCESS_FILTER_KEY, filter);
+    window.localStorage.setItem(key, filter);
   } catch {
     // 存不下不影响本次会话
   }
