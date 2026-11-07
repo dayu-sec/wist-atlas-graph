@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { TopologyViewState } from '../view/useTopologyView';
 import type { Theme } from '../types/theme';
 import GraphRoot from './GraphRoot';
@@ -19,6 +20,22 @@ type Props = {
  * 宿主把它放进自己的布局里即可；它自带 `GraphRoot`，所以外层不需要再包一层。
  */
 export default function TopologyCanvasView({ view, theme, className = '' }: Props) {
+  // 「居中」是一次性指令：nonce 变化即触发，点同一个按钮也能重复居中。
+  const [centerTarget, setCenterTarget] = useState<{
+    nodeId: string | null;
+    nonce: number;
+    inset: number;
+  } | null>(null);
+
+  const requestCenter = (nodeId: string | null) => {
+    setCenterTarget({
+      nodeId,
+      nonce: Date.now(),
+      // 详情抽屉是覆盖层：居中要按它让位，否则卡片会被压在抽屉底下。
+      inset: view.selectedNodeId || view.focusNodeId ? 336 : 0,
+    });
+  };
+
   return (
     <GraphRoot theme={theme} className={className}>
       <div className="relative min-w-0 flex-1">
@@ -38,6 +55,7 @@ export default function TopologyCanvasView({ view, theme, className = '' }: Prop
           onFocusNode={view.focusNode}
           hostMetrics={view.hostMetrics}
           onOpenHost={view.setHostId}
+          centerTarget={centerTarget}
         />
 
         <div className="pointer-events-none absolute left-4 top-4 z-20">
@@ -53,7 +71,11 @@ export default function TopologyCanvasView({ view, theme, className = '' }: Prop
 
         {view.focusedNode && (
           <div className="pointer-events-none absolute left-4 top-[62px] z-20">
-            <FocusBar label={view.focusLabel} onExit={view.clearFocus} />
+            <FocusBar
+              label={view.focusLabel}
+              onExit={view.clearFocus}
+              onCenter={() => requestCenter(view.focusNodeId ?? view.selectedNodeId)}
+            />
           </div>
         )}
 
@@ -80,6 +102,7 @@ export default function TopologyCanvasView({ view, theme, className = '' }: Prop
         processViewMode={view.processViewMode}
         loadedProcessGroups={view.loadedProcessGroups}
         onClose={() => view.selectNode(null)}
+        onCenter={() => requestCenter(view.selectedNodeId)}
         onOpenNetwork={view.openNetwork}
         onOpenService={view.openService}
         onFocusHost={(hostObjectId) => view.setHostId(hostObjectId)}

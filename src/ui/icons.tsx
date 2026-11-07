@@ -237,3 +237,14 @@ export function FocusIcon({ className = 'size-4' }: IconProps) {
     </Stroke>
   );
 }
+
+/** 准星：把当前卡片放回画布中心。 */
+export function CenterIcon({ className = 'size-4' }: IconProps) {
+  return (
+    <Stroke className={className}>
+      <circle cx="12" cy="12" r="6.5" />
+      <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    </Stroke>
+  );
+}

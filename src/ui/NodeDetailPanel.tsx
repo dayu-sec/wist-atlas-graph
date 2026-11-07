@@ -9,7 +9,7 @@ import { formatAddressFamily, parseTopPrograms } from '../index';
 import { basename, formatCount, formatRelative, truncate } from '../index';
 import { formatMbps, type NodeTelemetry } from '../index';
 import type { NodeStatus } from '../index';
-import { ArrowRightIcon, CloseIcon, FocusIcon, KindGlyph } from './icons';
+import { ArrowRightIcon, CenterIcon, CloseIcon, FocusIcon, KindGlyph } from './icons';
 import Sparkline from './Sparkline';
 import { StatusPill } from './StatusDot';
 
@@ -23,6 +23,8 @@ type Props = {
   processViewMode: 'overview' | 'expanded' | 'loading' | null;
   loadedProcessGroups: LoadedProcessGroupsState | null;
   onClose: () => void;
+  /** 把当前卡片放回画布中心（详情抽屉会盖住右侧，居中要按抽屉宽度让位）。 */
+  onCenter?: () => void;
   onExpand: (nodeId: string) => void;
   /** 网段节点：切到「这个网段里有哪些机器」。 */
   onOpenNetwork?: (segmentObjectId: string) => void;
@@ -45,6 +47,7 @@ export default function NodeDetailPanel({
   processViewMode,
   loadedProcessGroups,
   onClose,
+  onCenter,
   onExpand,
   onOpenNetwork,
   onOpenService,
@@ -92,6 +95,17 @@ export default function NodeDetailPanel({
             ) : null}
           </div>
         </div>
+        {onCenter ? (
+          <button
+            type="button"
+            onClick={onCenter}
+            aria-label="居中显示"
+            title="把这张卡片放回画布中心"
+            className="flex size-7 shrink-0 items-center justify-center rounded-[7px] text-ink-faint transition-colors hover:bg-subtle hover:text-ink-soft"
+          >
+            <CenterIcon className="size-4" />
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={onClose}

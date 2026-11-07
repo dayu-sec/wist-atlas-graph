@@ -40,6 +40,8 @@ type Props = {
   hostMetrics?: Record<string, { segments: number; processes: number }>;
   /** 总览里双击主机 → 进入这台主机的拓扑。 */
   onOpenHost?: (hostObjectId: string) => void;
+  /** 宿主请求把某个节点放到画布中心（nonce 变化即触发）。 */
+  centerTarget?: { nodeId: string | null; nonce: number; inset: number } | null;
 };
 
 const LAYOUT_OPTIONS: Record<'dagre' | 'cose-bilkent', cytoscape.LayoutOptions> = {
@@ -160,6 +162,7 @@ export default function TopologyCanvas({
   onFocusNode,
   hostMetrics,
   onOpenHost,
+  centerTarget,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -456,6 +459,29 @@ export default function TopologyCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphSignature]);
 
+
+  // 「居中」：把某张卡片放到可视区中心。详情抽屉是覆盖层，要按它的宽度让位。
+  useEffect(() => {
+    const cy = cyRef.current;
+    const targetId = centerTarget?.nodeId;
+    if (!cy || !targetId) return;
+    const node = cy.getElementById(targetId);
+    if (node.length === 0) return;
+
+    const inset = centerTarget?.inset ?? 0;
+    // 视图已经很远时先拉回可读档位，否则「居中」之后还是看不清。
+    const level = Math.min(1.4, Math.max(cy.zoom(), 0.9));
+    cy.zoom({ level, renderedPosition: { x: (cy.width() - inset) / 2, y: cy.height() / 2 } });
+    const point = node.renderedPosition();
+    const pan = cy.pan();
+    cy.pan({
+      x: pan.x + (cy.width() - inset) / 2 - point.x,
+      y: pan.y + cy.height() / 2 - point.y,
+    });
+    scheduleSyncRef.current();
+    // 只按 nonce 触发：点同一个按钮要能重复居中。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [centerTarget?.nonce]);
 
   // 聚焦：把镜头收到「焦点节点 + 一跳邻居」，否则 inspector 一开，
   // 整张服务图会被压到 67%，聚焦节点反而看不清。
