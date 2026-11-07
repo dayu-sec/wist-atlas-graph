@@ -8,6 +8,7 @@ import { graphToCyElements } from './graph-to-cy';
 import { buildSearchIndex } from '../index';
 import {
   computeFocusLayout,
+  computeOverviewLayout,
   computeRuntimeLayout,
   computeServiceLayout,
   type LaneAnnotation,
@@ -35,6 +36,10 @@ type Props = {
   telemetry: TelemetryMap;
   focusNodeId: string | null;
   onFocusNode: (nodeId: string) => void;
+  /** 总览里每台主机的规模（来自主机列表），单主机视图可以不给。 */
+  hostMetrics?: Record<string, { segments: number; processes: number }>;
+  /** 总览里双击主机 → 进入这台主机的拓扑。 */
+  onOpenHost?: (hostObjectId: string) => void;
 };
 
 const LAYOUT_OPTIONS: Record<'dagre' | 'cose-bilkent', cytoscape.LayoutOptions> = {
@@ -153,6 +158,8 @@ export default function TopologyCanvas({
   telemetry,
   focusNodeId,
   onFocusNode,
+  hostMetrics,
+  onOpenHost,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -193,6 +200,11 @@ export default function TopologyCanvas({
   );
 
   const hints = useMemo(() => buildNetworkHints(visibleGraph), [visibleGraph]);
+  // 多主机 = 总览：这里的主机卡代表「进入一台机器」，双击直接下钻。
+  const overview = useMemo(
+    () => (visibleGraph?.nodes.filter((node) => node.objectKind === 'HostInventory').length ?? 0) > 1,
+    [visibleGraph],
+  );
   const searchIndex = useMemo(() => buildSearchIndex(visibleGraph), [visibleGraph]);
 
   // 这些回调随 annotations / graph 身份变化，但 cytoscape 只应该初始化一次。
@@ -416,6 +428,8 @@ export default function TopologyCanvas({
     cy.add(graphToCyElements(current));
 
     const focus =
+      // 多主机先走总览网格：主机 + 共享网段，按视口宽高比铺开。
+      computeOverviewLayout(current) ??
       computeFocusLayout(current) ??
       computeServiceLayout(current) ??
       computeRuntimeLayout(current);
@@ -557,11 +571,33 @@ export default function TopologyCanvas({
               }}
               className="pointer-events-auto absolute left-0 top-0 origin-top-left will-change-transform"
               style={{ width: dims.width, height: dims.height }}
+              title={
+                overview && node.objectKind === 'HostInventory'
+                  ? `${node.label} · 双击进入这台主机的拓扑`
+                  : undefined
+              }
+              onDoubleClick={
+                overview && node.objectKind === 'HostInventory' && onOpenHost
+                  ? () => onOpenHost(node.objectId)
+                  : undefined
+              }
             >
               <NodeCard
                 node={node}
                 hint={hints.get(node.id)}
-                hostStats={node.objectKind === 'HostInventory' ? hostStats : undefined}
+                hostStats={
+                  node.objectKind === 'HostInventory'
+                    ? (hostStats ??
+                        (hostMetrics?.[node.objectId]
+                          ? {
+                              segments: hostMetrics[node.objectId].segments,
+                              processes: hostMetrics[node.objectId].processes,
+                              arch: null,
+                              scannedAt: null,
+                            }
+                          : undefined))
+                    : undefined
+                }
                 selected={selectedNodeId === node.id}
                 focused={focusNodeId === node.id}
                 dimmed={

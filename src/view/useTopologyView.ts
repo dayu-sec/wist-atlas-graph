@@ -86,6 +86,8 @@ export type TopologyViewState = {
   serviceCount: number;
   hostCount: number;
   topGroups: { name: string; count: number }[];
+  /** 总览时每台主机卡上的规模：来自主机列表（`GET /hosts`），不用逐台再拉一次资产卡。 */
+  hostMetrics: Record<string, { segments: number; processes: number }>;
 
   // 动作
   refresh: () => void;
@@ -179,13 +181,13 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     loadData();
   }, [loadData]);
 
+  /** 空串 = 回到「全部主机（总览）」：后端把 first 快照当作整张资产图。 */
   const openHost = useCallback(
     (nextHostId: string) => {
       const trimmed = nextHostId.trim();
-      if (!trimmed) return;
       setHostId(trimmed);
       dispatch({ type: 'FETCH_GRAPH_START' });
-      client.fetchHostProcessTopology(trimmed).then((res) => {
+      const done = (res: Awaited<ReturnType<AtlasClient['fetchHostProcessTopology']>>) => {
         if (res.status === 'ok') {
           resetExpansion();
           setExpandedServices(new Set());
@@ -193,7 +195,12 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
         } else {
           dispatch({ type: 'FETCH_GRAPH_ERROR', error: `[${res.code}] ${res.message}` });
         }
-      });
+      };
+      if (!trimmed) {
+        client.fetchFirstHostProcessTopology().then(done);
+        return;
+      }
+      client.fetchHostProcessTopology(trimmed).then(done);
     },
     [client, dispatch, resetExpansion],
   );
@@ -432,6 +439,14 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     return kinds;
   }, [graphNodes]);
 
+  const hostMetrics = useMemo(() => {
+    const metrics: Record<string, { segments: number; processes: number }> = {};
+    for (const host of hosts) {
+      metrics[host.id] = { segments: host.segmentCount, processes: host.processCount };
+    }
+    return metrics;
+  }, [hosts]);
+
   const topGroups = useMemo(
     () =>
       (state.hostTopology?.processGroups ?? []).slice(0, 5).map((group) => ({
@@ -471,7 +486,10 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
   const serviceCount =
     state.hostTopology?.services.length ??
     graphNodes.filter((node) => node.objectKind === 'ServiceEntity').length;
-  const hostCount = Number(displayGraph?.metadata?.hostCount ?? (primaryHostNode ? 1 : 0));
+  const hostCount = Number(
+    displayGraph?.metadata?.hostCount ??
+      graphNodes.filter((node) => node.objectKind === 'HostInventory').length,
+  );
 
   const searchIndex = useMemo(() => buildSearchIndex(displayGraph), [displayGraph]);
   const matchCount = state.searchQuery.trim()
@@ -513,6 +531,7 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     serviceCount,
     hostCount,
     topGroups,
+    hostMetrics,
     refresh: loadData,
     setHostId: openHost,
     selectNode: handleSelectNode,

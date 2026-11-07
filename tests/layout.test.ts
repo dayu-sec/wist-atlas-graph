@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildDisplayGraph,
   computeFocusLayout,
+  computeOverviewLayout,
   computeRuntimeLayout,
   PROCESS_GROUP_PREFIX,
   PROCESS_SUMMARY_PREFIX,
@@ -156,4 +157,93 @@ test('显示图：展开主机后才铺开进程分组', () => {
   );
   assert.ok(expanded);
   assert.equal(expanded.nodes.filter((item) => item.objectKind === 'ProcessGroup').length, 3);
+});
+
+function multiHostGraph(): HostProcessTopologyGraph {
+  const hosts = ['a', 'b', 'c', 'd', 'e'].map((name) => node(`host-${name}`, 'HostInventory'));
+  const lan = node('net-lan', 'NetworkSegment', { cidr: '10.0.0.0/24' });
+  const office = node('net-office', 'NetworkSegment', { cidr: '192.168.1.0/24' });
+  // 每台主机独有的接口（不同网段）：总览里不该出现。
+  const loopbacks = hosts.map((host, index) =>
+    node(`net-lo-${index}`, 'NetworkSegment', { cidr: `10.10.${index}.0/24`, host: host.id }),
+  );
+  const edges = [
+    ...hosts.map((host) => edge(host.id, 'net-lan', 'host_network_assoc', { ifaceName: 'eth0' })),
+    ...hosts.slice(0, 3).map((host) => edge(host.id, 'net-office', 'host_network_assoc')),
+    ...hosts.map((host, index) => edge(host.id, `net-lo-${index}`, 'host_network_assoc')),
+  ];
+  const summaries = hosts.map((host) =>
+    node(`${PROCESS_SUMMARY_PREFIX}${host.id}`, 'ProcessSummary', { totalProcesses: 100 }),
+  );
+  const summaryEdges = hosts.map((host) =>
+    edge(host.id, `${PROCESS_SUMMARY_PREFIX}${host.id}`, 'host_process_assoc'),
+  );
+  return graph([...hosts, lan, office, ...loopbacks, ...summaries], [...edges, ...summaryEdges]);
+}
+
+test('总览装配：多主机只留主机与共享网段，主机内部细节收起', () => {
+  const display = buildDisplayGraph(
+    multiHostGraph(),
+    new Set(),
+    new Set(),
+    new Set(),
+    {},
+    {},
+    {},
+    {},
+  );
+  assert.ok(display);
+  assert.equal(display.nodes.filter((item) => item.objectKind === 'HostInventory').length, 5);
+  const nets = display.nodes.filter((item) => item.objectKind === 'NetworkSegment');
+  assert.deepEqual(
+    nets.map((item) => item.label).sort(),
+    ['10.0.0.0/24', '192.168.1.0/24'],
+    '只保留被两台以上主机共享的网段',
+  );
+  assert.equal(display.nodes.filter((item) => item.objectKind === 'ProcessSummary').length, 0);
+});
+
+test('总览装配：同一 CIDR 的多个节点合并成一张卡', () => {
+  const h1 = node('h1', 'HostInventory');
+  const h2 = node('h2', 'HostInventory');
+  const seg1 = node('seg1', 'NetworkSegment', { cidr: '10.9.0.0/24' });
+  const seg2 = node('seg2', 'NetworkSegment', { cidr: '10.9.0.0/24' });
+  const source = graph(
+    [h1, h2, seg1, seg2],
+    [
+      edge('h1', 'seg1', 'host_network_assoc'),
+      edge('h2', 'seg2', 'host_network_assoc'),
+    ],
+  );
+  const display = buildDisplayGraph(source, new Set(), new Set(), new Set(), {}, {}, {}, {});
+  assert.ok(display);
+  const nets = display.nodes.filter((item) => item.objectKind === 'NetworkSegment');
+  assert.equal(nets.length, 1);
+  assert.equal(display.edges.length, 2);
+});
+
+test('总览版式：主机按视口宽高比铺成网格，网段单独一条车道', () => {
+  const display = buildDisplayGraph(
+    multiHostGraph(),
+    new Set(),
+    new Set(),
+    new Set(),
+    {},
+    {},
+    {},
+    {},
+  );
+  assert.ok(display);
+  const layout = computeOverviewLayout(display);
+  assert.ok(layout, '多主机应命中总览版式');
+  const hostXs = display.nodes
+    .filter((item) => item.objectKind === 'HostInventory')
+    .map((item) => layout.positions[item.id]?.x)
+    .filter((value): value is number => typeof value === 'number');
+  assert.ok(new Set(hostXs).size >= 3, '5 台主机在宽画布上应至少 3 列');
+  const netXs = display.nodes
+    .filter((item) => item.objectKind === 'NetworkSegment')
+    .map((item) => layout.positions[item.id]?.x)
+    .filter((value): value is number => typeof value === 'number');
+  assert.ok(Math.max(...netXs) < Math.min(...hostXs), '共享网段在主机网格左侧');
 });

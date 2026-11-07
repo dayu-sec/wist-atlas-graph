@@ -27,6 +27,9 @@ export type FocusLayout = {
  */
 const FOCUS_LEAF_LIMIT = 64;
 const LANE_GAP = 132;
+/** 总览网格里两张主机卡之间留多少。 */
+const OVERVIEW_HOST_GAP = 32;
+const OVERVIEW_SEGMENT_GAP = 14;
 /** 右栏竖向堆叠的上限。超过就换网格 —— 一列堆 28 张服务卡会把整图压到 14%。 */
 const RIGHT_LANE_STACK_LIMIT = 4;
 /** 网格每列最多多少行。14 行 ≈ 左栏网段列的高度，两列就能装下 28 个服务。 */
@@ -578,4 +581,110 @@ function centerComposition(
     annotation.x += dx;
     annotation.y += dy;
   }
+}
+
+/**
+ * 「全部主机」总览版式：共享网段在左，主机按视口宽高比铺成网格。
+ *
+ * 旧版多主机图走 dagre，结果是一条竖列 —— 8 台主机加几十个接口节点会被压到 20% 缩放，
+ * 字全糊。总览的信息层级其实只有两层：主机、以及被多台主机共享的网段
+ * （只属于某台主机的接口在装配阶段就被收起来了，见 `buildDisplayGraph`）。
+ */
+export function computeOverviewLayout(graph: HostProcessTopologyGraph): FocusLayout | null {
+  const hosts = graph.nodes
+    .filter((node) => node.objectKind === 'HostInventory')
+    .sort((left, right) => left.label.localeCompare(right.label, 'en'));
+  if (hosts.length < 2) return null;
+
+  // 总览只该有主机与共享网段；出现别的类型说明这张图有别的主题，交给兜底版式。
+  if (
+    graph.nodes.some(
+      (node) => node.objectKind !== 'HostInventory' && node.objectKind !== 'NetworkSegment',
+    )
+  ) {
+    return null;
+  }
+
+  const segments = graph.nodes
+    .filter((node) => node.objectKind === 'NetworkSegment')
+    .sort((left, right) =>
+      String(left.properties.cidr ?? left.label).localeCompare(
+        String(right.properties.cidr ?? right.label),
+        'en',
+      ),
+    );
+
+  const hostDims = nodeDims('HostInventory');
+  // 列数按 16:9 的目标画布算，而不是量当前画布 ——
+  // 首次布局时容器可能还没有最终尺寸，量出来会把 5 台主机排成 2 列。
+  const OVERVIEW_TARGET_ASPECT = 1.6;
+  const columns = Math.min(
+    6,
+    Math.max(
+      1,
+      Math.ceil(
+        Math.sqrt(
+          hosts.length * OVERVIEW_TARGET_ASPECT * (hostDims.height / hostDims.width),
+        ),
+      ),
+    ),
+  );
+  const rows = Math.ceil(hosts.length / columns);
+  const gridWidth = columns * hostDims.width + (columns - 1) * OVERVIEW_HOST_GAP;
+  const gridHeight = rows * hostDims.height + (rows - 1) * OVERVIEW_HOST_GAP;
+
+  const positions: Record<string, GraphPoint> = {};
+  const annotations: LaneAnnotation[] = [];
+
+  hosts.forEach((node, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    positions[node.id] = {
+      x: -gridWidth / 2 + hostDims.width / 2 + column * (hostDims.width + OVERVIEW_HOST_GAP),
+      y: -gridHeight / 2 + hostDims.height / 2 + row * (hostDims.height + OVERVIEW_HOST_GAP),
+    };
+  });
+
+  if (segments.length > 0) {
+    const dims = nodeDims('NetworkSegment');
+    const maxRows = Math.max(
+      1,
+      Math.min(8, Math.floor((gridHeight + OVERVIEW_SEGMENT_GAP) / (dims.height + OVERVIEW_SEGMENT_GAP))),
+    );
+    const segColumns = Math.ceil(segments.length / maxRows);
+    const laneWidth = segColumns * dims.width + (segColumns - 1) * OVERVIEW_SEGMENT_GAP;
+    const laneLeft = -gridWidth / 2 - LANE_GAP - laneWidth;
+    const visibleRows = Math.min(segments.length, maxRows);
+    const laneHeight = visibleRows * dims.height + (visibleRows - 1) * OVERVIEW_SEGMENT_GAP;
+
+    segments.forEach((node, index) => {
+      const column = Math.floor(index / maxRows);
+      const row = index % maxRows;
+      positions[node.id] = {
+        x: laneLeft + dims.width / 2 + column * (dims.width + OVERVIEW_SEGMENT_GAP),
+        y: -laneHeight / 2 + dims.height / 2 + row * (dims.height + OVERVIEW_SEGMENT_GAP),
+      };
+    });
+
+    annotations.push({
+      id: 'lane-overview-network',
+      x: laneLeft,
+      y: -laneHeight / 2 - 36,
+      width: laneWidth,
+      text: '共享网络',
+      count: String(segments.length),
+    });
+  }
+
+  annotations.push({
+    id: 'lane-overview-hosts',
+    x: -gridWidth / 2,
+    y: -gridHeight / 2 - 36,
+    width: gridWidth,
+    text: '主机',
+    count: String(hosts.length),
+  });
+
+  centerComposition(positions, annotations, graph);
+  return { positions, annotations };
 }

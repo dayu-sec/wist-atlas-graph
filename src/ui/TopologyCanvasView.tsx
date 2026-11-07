@@ -36,6 +36,8 @@ export default function TopologyCanvasView({ view, theme, className = '' }: Prop
           telemetry={view.telemetry}
           focusNodeId={view.focusNodeId}
           onFocusNode={view.focusNode}
+          hostMetrics={view.hostMetrics}
+          onOpenHost={view.setHostId}
         />
 
         <div className="pointer-events-none absolute left-4 top-4 z-20">

@@ -41,6 +41,12 @@ export function buildDisplayGraph(
   const serviceFocus = findServiceFocus(source);
   if (serviceFocus) return buildServiceFocusDisplay(source, serviceFocus.id);
 
+  // 多主机 = 资产总览。主机内部的细节（运行时 / 分组 / 服务 / 容器）一张卡都不放，
+  // 只保留「被两台以上主机共享」的网段 —— 主机自己的接口不构成总览信息。
+  if (source.nodes.filter((node) => node.objectKind === 'HostInventory').length > 1) {
+    return buildOverviewDisplay(source);
+  }
+
   const nodesById = new Map(source.nodes.map((node) => [node.id, node]));
   const processSummaryEdgesByHost = new Map<string, HostProcessTopologyEdge[]>();
   const processGroupEdgesBySummary = new Map<string, HostProcessTopologyEdge[]>();
@@ -364,6 +370,70 @@ export function buildDisplayGraph(
     edges: displayEdges,
     metadata: source.metadata,
   };
+}
+
+/**
+ * 总览装配：主机 + 共享网段。
+ *
+ * 后端可能给同一网段每个主机一份节点（同一 CIDR、不同 objectId）；按 CIDR 合并成一张卡，
+ * 只挂在真正共享它的主机上。只属于单台主机的接口直接丢弃 —— 那是「主机内部」的信息，
+ * 聚焦到那台主机时才需要。
+ */
+function buildOverviewDisplay(source: HostProcessTopologyGraph): HostProcessTopologyGraph {
+  const nodesById = new Map(source.nodes.map((node) => [node.id, node]));
+  const hosts = source.nodes
+    .filter((node) => node.objectKind === 'HostInventory')
+    .sort((left, right) => left.label.localeCompare(right.label, 'en'));
+  const hostIds = new Set(hosts.map((host) => host.id));
+
+  const shared = new Map<string, { node: HostProcessTopologyNode; hosts: Set<string> }>();
+  for (const edge of source.edges) {
+    if (edge.edgeKind !== 'host_network_assoc') continue;
+    let hostId: string | null = null;
+    let segmentId: string | null = null;
+    if (hostIds.has(edge.source)) {
+      hostId = edge.source;
+      segmentId = edge.target;
+    } else if (hostIds.has(edge.target)) {
+      hostId = edge.target;
+      segmentId = edge.source;
+    }
+    if (!hostId || !segmentId) continue;
+    const segment = nodesById.get(segmentId);
+    if (!segment || segment.objectKind !== 'NetworkSegment') continue;
+
+    const key = String(segment.properties.cidr ?? segment.label);
+    const entry = shared.get(key) ?? { node: segment, hosts: new Set<string>() };
+    entry.hosts.add(hostId);
+    shared.set(key, entry);
+  }
+
+  const nodes: HostProcessTopologyNode[] = [...hosts];
+  const edges: HostProcessTopologyEdge[] = [];
+  const keys = [...shared.keys()].sort((left, right) => left.localeCompare(right, 'en'));
+
+  for (const key of keys) {
+    const entry = shared.get(key);
+    if (!entry || entry.hosts.size < 2) continue;
+    const id = `overview-network:${key}`;
+    nodes.push({
+      ...entry.node,
+      id,
+      label: key || entry.node.label,
+      properties: { ...entry.node.properties, sharedHostCount: entry.hosts.size },
+    });
+    for (const hostId of entry.hosts) {
+      edges.push({
+        id: `overview-edge:${hostId}:${id}`,
+        edgeKind: 'host_network_assoc',
+        source: hostId,
+        target: id,
+        properties: { overview: true },
+      });
+    }
+  }
+
+  return { nodes, edges, metadata: source.metadata };
 }
 
 /**

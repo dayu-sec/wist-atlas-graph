@@ -21,7 +21,7 @@ export type GraphNodeHint = {
 export type HostStats = {
   segments: number;
   processes: number;
-  groups: number;
+  groups?: number;
   arch?: string | null;
   scannedAt?: string | null;
 };
