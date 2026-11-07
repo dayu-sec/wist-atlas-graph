@@ -35,7 +35,6 @@
   "devDependencies": {
     "tsx": "^4.19.0",
     "typescript": "^5.9.0",
-    "@types/cytoscape": "^3.21.9",
     "@types/node": "^24.12.2"
   },
   "engines": {
@@ -44,13 +43,5 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dayu-sec/wist-atlas-graph.git"
-  },
-  "peerDependencies": {
-    "cytoscape": ">=3"
-  },
-  "peerDependenciesMeta": {
-    "cytoscape": {
-      "optional": true
-    }
   }
 }

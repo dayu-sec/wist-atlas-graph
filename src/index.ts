@@ -14,6 +14,5 @@ export * from './utils/search';
 export * from './utils/colors';
 export * from './utils/format';
 export * from './utils/focus-layout';
-export * from './utils/graph-to-cy';
 export * from './display/build-display-graph';
 export * from './api/client';
