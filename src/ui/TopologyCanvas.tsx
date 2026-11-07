@@ -46,6 +46,10 @@ type Props = {
   onOpenHost?: (hostObjectId: string) => void;
   /** 宿主请求把某个节点放到画布中心（nonce 变化即触发）。 */
   centerTarget?: { nodeId: string | null; nonce: number; inset: number } | null;
+  /** 选中节点后浮在卡片上方的快捷操作（由宿主提供动作，画布只负责摆位置）。 */
+  onRequestCenter?: (nodeId: string) => void;
+  onOpenNetwork?: (segmentObjectId: string) => void;
+  onOpenService?: (serviceObjectId: string) => void;
 };
 
 const LAYOUT_OPTIONS: Record<'dagre' | 'cose-bilkent', cytoscape.LayoutOptions> = {
@@ -169,6 +173,9 @@ export default function TopologyCanvas({
   hostMetrics,
   onOpenHost,
   centerTarget,
+  onRequestCenter,
+  onOpenNetwork,
+  onOpenService,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -178,6 +185,8 @@ export default function TopologyCanvas({
   const onSelectRef = useRef(onSelectNode);
   const [annotations, setAnnotations] = useState<LaneAnnotation[]>([]);
   const [zoom, setZoom] = useState(1);
+  // 选中后等一下再浮出快捷操作：刚点开详情抽屉时不和抽屉抢视线。
+  const [actionsVisible, setActionsVisible] = useState(false);
 
   useEffect(() => {
     onSelectRef.current = onSelectNode;
@@ -514,6 +523,50 @@ export default function TopologyCanvas({
     scheduleSync();
   }, [graphSignature, annotations, scheduleSync]);
 
+  const selectedNode = visibleGraph?.nodes.find((node) => node.id === selectedNodeId) ?? null;
+
+  // 选中 2 秒后，在卡片上方浮出这节点最可能的下一步操作（详情抽屉里那些按钮太靠下）。
+  useEffect(() => {
+    setActionsVisible(false);
+    if (!selectedNodeId) return;
+    const timer = window.setTimeout(() => setActionsVisible(true), 2000);
+    return () => window.clearTimeout(timer);
+  }, [selectedNodeId, graphSignature]);
+
+  const quickActions = useMemo(() => {
+    if (!selectedNode) return [];
+    const actions: { id: string; label: string; run: () => void }[] = [];
+    if (selectedNode.objectKind === 'HostInventory' && onOpenHost) {
+      actions.push({
+        id: 'open-host',
+        label: '进入这台主机',
+        run: () => onOpenHost(selectedNode.objectId),
+      });
+    }
+    if (selectedNode.objectKind === 'NetworkSegment' && onOpenNetwork) {
+      actions.push({
+        id: 'open-network',
+        label: '网段里的主机',
+        run: () => onOpenNetwork(selectedNode.objectId),
+      });
+    }
+    if (selectedNode.objectKind === 'ServiceEntity' && onOpenService) {
+      actions.push({
+        id: 'open-service',
+        label: '监听详情',
+        run: () => onOpenService(selectedNode.objectId),
+      });
+    }
+    if (onRequestCenter) {
+      actions.push({
+        id: 'center',
+        label: '居中',
+        run: () => onRequestCenter(selectedNode.id),
+      });
+    }
+    return actions;
+  }, [selectedNode, onOpenHost, onOpenNetwork, onOpenService, onRequestCenter]);
+
   // 搜索：命中集合驱动卡片与连线同时变淡，避免「卡片亮了、线还在」。
   const matchedIds = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -622,6 +675,47 @@ export default function TopologyCanvas({
                   : undefined
               }
             >
+              {selectedNodeId === node.id && actionsVisible && quickActions.length > 0 ? (
+                <div
+                  className="absolute bottom-full left-1/2 mb-2.5 flex items-center gap-0.5 rounded-[9px] border border-line bg-surface/95 px-1 py-0.5 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] backdrop-blur"
+                  style={{
+                    transform: `translateX(-50%) scale(${1 / Math.max(zoom, 0.2)})`,
+                    transformOrigin: 'center bottom',
+                  }}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {quickActions.map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        action.run();
+                      }}
+                      className={`flex h-6 items-center whitespace-nowrap rounded-[6px] px-2 text-[10.5px] font-medium transition-colors ${
+                        action.id === 'open-host' ||
+                        action.id === 'open-network' ||
+                        action.id === 'open-service'
+                          ? 'text-brand hover:bg-brand-soft hover:text-brand-strong'
+                          : 'text-ink-soft hover:bg-elevated hover:text-ink'
+                      }`}
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onSelectNode(null);
+                    }}
+                    aria-label="关闭快捷操作"
+                    className="grid size-6 place-items-center rounded-[6px] text-ink-faint transition-colors hover:bg-elevated hover:text-ink-soft"
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : null}
               <NodeCard
                 node={node}
                 hint={hints.get(node.id)}

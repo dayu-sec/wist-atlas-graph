@@ -1,6 +1,6 @@
 {
   "name": "@dayu-sec/wist-atlas-graph",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "wist-atlas 的图谱内核：领域类型、版式算法、图元素构建、状态口径与注入式只读 API 客户端。不含 React、不含页面外壳。",
   "type": "module",
   "license": "Apache-2.0",

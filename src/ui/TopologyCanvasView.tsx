@@ -58,6 +58,9 @@ export default function TopologyCanvasView({ view, theme, className = '' }: Prop
           hostMetrics={view.hostMetrics}
           onOpenHost={view.setHostId}
           centerTarget={centerTarget}
+          onRequestCenter={(nodeId) => requestCenter(nodeId)}
+          onOpenNetwork={view.openNetwork}
+          onOpenService={view.openService}
         />
 
         <div className="pointer-events-none absolute left-4 top-4 z-20">
