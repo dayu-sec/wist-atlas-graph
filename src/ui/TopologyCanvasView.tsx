@@ -20,7 +20,7 @@ type Props = {
  */
 export default function TopologyCanvasView({ view, theme, className = '' }: Props) {
   return (
-    <GraphRoot theme={theme} className={`relative flex min-w-0 flex-1 ${className}`.trim()}>
+    <GraphRoot theme={theme} className={className}>
       <div className="relative min-w-0 flex-1">
         <TopologyCanvas
           graph={view.displayGraph}

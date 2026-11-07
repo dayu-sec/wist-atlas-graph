@@ -619,7 +619,7 @@ export default function TopologyCanvas({
 
       {empty && (
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-center">
-          <span className="grid size-11 place-items-center rounded-xl border border-dashed border-line-strong bg-surface/70 text-ink-faint">
+          <span className="flex size-11 items-center justify-center rounded-xl border border-dashed border-line-strong bg-surface/70 text-ink-faint">
             <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.5">
               <circle cx="12" cy="5" r="2" />
               <circle cx="5" cy="18" r="2" />
@@ -695,7 +695,7 @@ function ZoomButton({
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="grid size-7 place-items-center rounded-[7px] text-ink-soft transition-colors hover:bg-subtle"
+      className="flex size-7 items-center justify-center rounded-[7px] text-ink-soft transition-colors hover:bg-subtle"
     >
       {children}
     </button>

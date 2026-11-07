@@ -91,6 +91,17 @@
   --color-pink-soft: #2a1424;
 }
 
+/* 作用域根同时也是画布的布局根。
+   注意：作用域内的 utility 都是「后代」选择器，根元素自己**不能用** Tailwind 类，
+   所以这里直接写死成「撑满父级 flex 容器」—— 宿主只需要给它高度。 */
+.atlas-graph-root {
+  position: relative;
+  display: flex;
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 0;
+}
+
 .atlas-graph-root {
   color-scheme: light;
   /* 画布与卡片 */
@@ -310,4 +321,10 @@
 .atlas-graph-root .sparkline path.area {
   fill: color-mix(in srgb, var(--color-brand) 12%, transparent);
   stroke: none;
+}
+
+/* 二维网格：不用 Tailwind 的 `.grid` —— 那个类名太常见，宿主的同名全局样式会漏进来。
+   宿主元素上的 `grid-cols-*` 仍然可用。 */
+.atlas-grid {
+  display: grid;
 }

@@ -67,10 +67,10 @@ export default function NodeDetailPanel({
         : node.label;
 
   return (
-    <aside className="shell absolute inset-y-0 right-0 z-30 flex w-[336px] flex-col border-l border-line shadow-[-12px_0_32px_-24px_rgba(0,0,0,0.45)]">
+    <aside className="bg-shell absolute inset-y-0 right-0 z-30 flex w-[336px] flex-col border-l border-line shadow-[-12px_0_32px_-24px_rgba(0,0,0,0.45)]">
       <header className="flex items-start gap-2.5 border-b border-line px-4 py-3.5">
         <span
-          className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-[8px]"
+          className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[8px]"
           style={{ backgroundColor: style.fill, color: style.stroke }}
           aria-hidden
         >
@@ -96,7 +96,7 @@ export default function NodeDetailPanel({
           type="button"
           onClick={onClose}
           aria-label="关闭"
-          className="-mr-1 grid size-7 shrink-0 place-items-center rounded-[7px] text-ink-faint transition-colors hover:bg-subtle hover:text-ink-soft"
+          className="-mr-1 flex size-7 shrink-0 items-center justify-center rounded-[7px] text-ink-faint transition-colors hover:bg-subtle hover:text-ink-soft"
         >
           <CloseIcon className="size-4" />
         </button>
@@ -283,7 +283,7 @@ function HostDetail({ topology }: { topology: HostTopologyDto }) {
       </Section>
 
       <Section title="规模">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="atlas-grid grid-cols-3 gap-2">
           <Metric label="网段" value={topology.networkSegments.length} />
           <Metric label="进程" value={topology.processes.length} />
           <Metric label="容器" value={containers.length} />
@@ -453,7 +453,7 @@ function ServiceDetail({
       </Section>
 
       <Section title="规模">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="atlas-grid grid-cols-2 gap-2">
           <Metric label="实例" value={instanceCount ?? instances.length} />
           <Metric label="主机" value={hostCount} />
         </div>
@@ -652,7 +652,7 @@ function RuntimeDetail({
   return (
     <div className="space-y-5">
       <Section title="规模">
-        <div className="grid grid-cols-2 gap-2">
+        <div className="atlas-grid grid-cols-2 gap-2">
           <Metric label="进程" value={totalProcesses} />
           <Metric label="程序" value={totalPrograms} />
         </div>
@@ -717,7 +717,7 @@ function ProcessGroupDetail({
     return (
       <div className="space-y-5">
         <Section title="收起的分组">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="atlas-grid grid-cols-2 gap-2">
             <Metric label="隐藏分组" value={hiddenGroups ?? 0} />
             <Metric label="隐藏进程" value={hiddenProcesses ?? 0} />
           </div>
@@ -746,7 +746,7 @@ function ProcessGroupDetail({
         <Field label="可执行文件">
           <span className="font-mono text-[10px] break-all">{executable ?? '—'}</span>
         </Field>
-        <div className="grid grid-cols-2 gap-2 pt-1">
+        <div className="atlas-grid grid-cols-2 gap-2 pt-1">
           <Metric label="进程数" value={processCount ?? 0} />
           <Metric label="RSS" value={totalMemoryRssMiB ?? 0} suffix="MiB" />
         </div>

@@ -180,7 +180,7 @@ function HostCard({
     <div className="flex h-full flex-col px-4 pb-3.5 pt-4">
       <div className="flex items-start gap-3">
         <span
-          className="grid size-11 shrink-0 place-items-center rounded-[12px]"
+          className="flex size-11 shrink-0 items-center justify-center rounded-[12px]"
           style={{ backgroundColor: 'var(--node-host-fill)', color: 'var(--node-host-stroke)' }}
           aria-hidden
         >
@@ -210,7 +210,7 @@ function HostCard({
       </div>
 
       <div className="mt-auto">
-        <div className="grid grid-cols-3 gap-2 border-t border-line-soft pt-2.5">
+        <div className="atlas-grid grid-cols-3 gap-2 border-t border-line-soft pt-2.5">
           <HostStat value={segments} label="网段" />
           <HostStat value={processes} label="进程" />
           <HostStat value={stats?.groups} label="分组" />
@@ -222,7 +222,7 @@ function HostCard({
               {formatMbps(telemetry.inMbps)}
               <span className="ml-0.5 text-[8px] font-normal text-ink-faint">MB/s</span>
             </span>
-            <span className="ml-auto block w-[88px] shrink-0">
+            <span className="ml-auto w-[88px] shrink-0">
               <Sparkline values={telemetry.history ?? []} height={18} />
             </span>
           </div>
@@ -278,7 +278,7 @@ function NetworkCard({
   return (
     <div className="flex h-full items-center gap-2.5 px-3.5">
       <span
-        className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
+        className="flex size-[30px] shrink-0 items-center justify-center rounded-[9px]"
         style={{ backgroundColor: 'var(--node-network-fill)', color: 'var(--node-network-stroke)' }}
         aria-hidden
       >
@@ -347,7 +347,7 @@ function RuntimeCard({
     <div className="flex h-full flex-col px-4 pb-3.5 pt-4">
       <div className="flex items-center gap-2">
         <span
-          className="grid size-[26px] shrink-0 place-items-center rounded-[8px]"
+          className="flex size-[26px] shrink-0 items-center justify-center rounded-[8px]"
           style={{ backgroundColor: 'var(--node-summary-fill)', color: 'var(--node-summary-stroke)' }}
           aria-hidden
         >
@@ -465,7 +465,7 @@ function ProcessGroupCard({ node, status }: { node: HostProcessTopologyNode; sta
   return (
     <div className="flex h-full items-center gap-2.5 px-3">
       <span
-        className="grid size-[26px] shrink-0 place-items-center rounded-[8px]"
+        className="flex size-[26px] shrink-0 items-center justify-center rounded-[8px]"
         style={{ backgroundColor: 'var(--node-group-fill)', color: 'var(--node-group-stroke)' }}
         aria-hidden
       >
@@ -513,7 +513,7 @@ function ServiceCard({ node, status }: { node: HostProcessTopologyNode; status: 
     return (
       <div className="flex h-full items-center gap-2.5 px-3.5">
         <span
-          className="grid size-[30px] shrink-0 place-items-center rounded-[9px] border border-dashed"
+          className="flex size-[30px] shrink-0 items-center justify-center rounded-[9px] border border-dashed"
           style={{ borderColor: 'var(--node-service-stroke)', color: 'var(--node-service-stroke)' }}
           aria-hidden
         >
@@ -547,7 +547,7 @@ function ServiceCard({ node, status }: { node: HostProcessTopologyNode; status: 
   return (
     <div className="flex h-full items-center gap-2.5 px-3.5">
       <span
-        className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
+        className="flex size-[30px] shrink-0 items-center justify-center rounded-[9px]"
         style={{ backgroundColor: 'var(--node-service-fill)', color: 'var(--node-service-stroke)' }}
         aria-hidden
       >
@@ -605,7 +605,7 @@ function ContainerCard({ node, status }: { node: HostProcessTopologyNode; status
   return (
     <div className="flex h-full items-center gap-2.5 px-3.5">
       <span
-        className="grid size-[30px] shrink-0 place-items-center rounded-[9px]"
+        className="flex size-[30px] shrink-0 items-center justify-center rounded-[9px]"
         style={{ backgroundColor: 'var(--node-container-fill)', color: 'var(--node-container-stroke)' }}
         aria-hidden
       >
@@ -635,7 +635,7 @@ function SubjectCard({ node, status }: { node: HostProcessTopologyNode; status: 
   return (
     <div className="flex h-full items-center gap-2.5 px-3">
       <span
-        className="grid size-[28px] shrink-0 place-items-center rounded-full"
+        className="flex size-[28px] shrink-0 items-center justify-center rounded-full"
         style={{ backgroundColor: 'var(--node-subject-fill)', color: 'var(--node-subject-stroke)' }}
         aria-hidden
       >

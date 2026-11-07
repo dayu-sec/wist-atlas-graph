@@ -25,7 +25,7 @@ export default function FocusBar({ label, onExit }: Props) {
         type="button"
         onClick={onExit}
         aria-label="退出聚焦"
-        className="grid size-5 place-items-center rounded text-ink-faint transition-colors hover:bg-elevated hover:text-ink-soft"
+        className="flex size-5 items-center justify-center rounded text-ink-faint transition-colors hover:bg-elevated hover:text-ink-soft"
       >
         <CloseIcon className="size-3.5" />
       </button>

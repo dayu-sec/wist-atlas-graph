@@ -4,6 +4,23 @@
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.1] - 2026-11-07
+
+### Fixed
+
+- **与宿主的类名冲突**：`wist-field-web` 的全局 `.grid` / `.block` / `.shell` 会漏进画布
+  （宿主的 `.grid` 带 `grid-template-columns`，把 28px 图标块撑成 340px 网格）。
+  包内不再使用这三个通用类名：图标块改 `flex + items-center justify-center`，二维网格改用
+  包自己的 `.atlas-grid`，详情面板背景改 `bg-shell`。
+- **`GraphRoot` 的布局**：作用域内 utility 是后代选择器，根元素自己用不上。改为在
+  `.atlas-graph-root` 上直接定义 `display:flex; flex:1; min-width:0; min-height:0`，
+  宿主只需给它高度（否则 `TopologyCanvasView` 在 flex 列里高度为 0）。
+
+### 说明
+
+- `wist-field-web` 已接入：拓扑页删掉 iframe，改为 `useTopologyView` + `TopologyCanvasView`，
+  数据走 BFF 的 `/api/atlas/*`；`/atlas/` 反代与开发者提示条一并删除。
+
 ## [0.3.0] - 2026-11-07
 
 ### Added
