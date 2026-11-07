@@ -1,0 +1,56 @@
+{
+  "name": "@dayu-sec/wist-atlas-graph",
+  "version": "0.1.0",
+  "description": "wist-atlas 的图谱内核：领域类型、版式算法、图元素构建、状态口径与注入式只读 API 客户端。不含 React、不含页面外壳。",
+  "type": "module",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./api": {
+      "types": "./dist/api/client.d.ts",
+      "default": "./dist/api/client.js"
+    },
+    "./layout": {
+      "types": "./dist/utils/focus-layout.d.ts",
+      "default": "./dist/utils/focus-layout.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "check-types": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "prepare": "npm run build"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.9.0",
+    "@types/cytoscape": "^3.21.9",
+    "@types/node": "^24.12.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dayu-sec/wist-atlas-graph.git"
+  },
+  "peerDependencies": {
+    "cytoscape": ">=3"
+  },
+  "peerDependenciesMeta": {
+    "cytoscape": {
+      "optional": true
+    }
+  }
+}
