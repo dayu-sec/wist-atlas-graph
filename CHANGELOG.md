@@ -4,6 +4,23 @@
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.3.0] - 2026-11-07
+
+### Added
+
+- **`useTopologyView({ client, initialHostId, demo, fixture, handleEscape })`**：一张拓扑视图的
+  全部状态与动作 —— 取图、资卡、进程分组展开/分页、服务焦点跳转、选中/聚焦/搜索/图层、
+  状态与健康口径。逻辑来自 `wist-atlas-web/App.tsx`，但不含顶栏/左栏/状态栏/服务清单。
+- **`TopologyCanvasView`**：画布 + 工具条 + 聚焦条 + 详情抽屉 + 错误提示，自带 `GraphRoot`。
+  宿主把它放进自己的布局即可拿到完整交互。
+- **`TopologyView`**：一行接入（内部自己调 `useTopologyView`），适合不需要外壳的宿主。
+- `TopologyViewState` 暴露 `layerVisibility`（画布图层开关需要）、`focusedNode`。
+
+### Changed
+
+- `wist-atlas-web` 的 `App.tsx` 从 777 行降到 ~290 行，只剩页面外壳与外壳状态；
+  装配逻辑全部改由 `useTopologyView` 提供。迁移后同一 fixture 像素比对 0 差异。
+
 ## [0.2.0] - 2026-11-07
 
 ### Added

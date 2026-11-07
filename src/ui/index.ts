@@ -4,6 +4,8 @@
  */
 
 export { default as GraphRoot } from './GraphRoot';
+export { default as TopologyView } from './TopologyView';
+export { default as TopologyCanvasView } from './TopologyCanvasView';
 export { default as TopologyCanvas } from './TopologyCanvas';
 export { default as NodeCard } from './NodeCard';
 export { default as NodeDetailPanel } from './NodeDetailPanel';
@@ -14,3 +16,5 @@ export { default as Sparkline } from './Sparkline';
 export * from './icons';
 export * from './graph-to-cy';
 export * from './useAppState';
+
+export * from '../view/useTopologyView';
