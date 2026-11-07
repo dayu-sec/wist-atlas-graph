@@ -1,0 +1,313 @@
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+@source "./ui/**/*.tsx";
+
+/* 画布视觉全部挂在 .atlas-graph-root 下（见 GraphRoot）：宿主不装 Tailwind，
+   也不会被 --color-* / --font-mono 这类变量污染。 */
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+
+  /* 表面层次 */
+  --color-shell: #ffffff;
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-elevated: #f9fafb;
+  --color-subtle: #f2f4f7;
+  --color-line: #eaecf0;
+  --color-line-soft: #f2f4f7;
+  --color-line-strong: #d0d5dd;
+
+  /* 文字层次 */
+  --color-ink: #101828;
+  --color-ink-soft: #475467;
+  --color-ink-mute: #667085;
+  --color-ink-faint: #98a2b3;
+
+  /* 品牌色：浅色靛蓝，深色紫罗兰 */
+  --color-brand: #4f46e5;
+  --color-brand-strong: #4338ca;
+  --color-brand-soft: #eef2ff;
+  --color-brand-line: #c7d2fe;
+
+  /* 状态色 */
+  --color-ok: #12b76a;
+  --color-ok-strong: #027a48;
+  --color-ok-soft: #ecfdf3;
+  --color-ok-line: #d1fae5;
+  --color-warn: #f59e0b;
+  --color-warn-strong: #b54708;
+  --color-warn-soft: #fffaeb;
+  --color-warn-line: #fedf89;
+  --color-danger: #ef4444;
+  --color-danger-strong: #b42318;
+  --color-danger-soft: #fef3f2;
+  --color-danger-line: #fecdca;
+  --color-info: #0ea5e9;
+  --color-info-soft: #f0f9ff;
+  --color-pink: #ee46bc;
+  --color-pink-soft: #fdf2fa;
+}
+
+/* 深色主题的语义令牌。Tailwind 的 bg-surface / text-ink / border-line
+   都引用这些变量，所以只在 :root 里换一套值，组件不需要写 dark: 变体。 */
+.atlas-graph-root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-shell: #080f1b;
+  --color-canvas: #0a1220;
+  --color-surface: #0f1a2c;
+  --color-elevated: #132035;
+  --color-subtle: #182741;
+  --color-line: #1d2c44;
+  --color-line-soft: #16233a;
+  --color-line-strong: #2a3c58;
+
+  --color-ink: #e7eef9;
+  --color-ink-soft: #a9b8ce;
+  --color-ink-mute: #8ea1ba;
+  --color-ink-faint: #6f8099;
+
+  --color-brand: #8b5cf6;
+  --color-brand-strong: #a78bfa;
+  --color-brand-soft: #1b1638;
+  --color-brand-line: #3d3168;
+
+  --color-ok: #34d399;
+  --color-ok-strong: #6ee7b7;
+  --color-ok-soft: #0b241d;
+  --color-ok-line: #1f4a3b;
+  --color-warn: #fbbf24;
+  --color-warn-strong: #fcd34d;
+  --color-warn-soft: #241c0c;
+  --color-warn-line: #4a3a17;
+  --color-danger: #f87171;
+  --color-danger-strong: #fca5a5;
+  --color-danger-soft: #2a1416;
+  --color-danger-line: #5a2525;
+  --color-info: #38bdf8;
+  --color-info-soft: #0b2333;
+  --color-pink: #f472b6;
+  --color-pink-soft: #2a1424;
+}
+
+.atlas-graph-root {
+  color-scheme: light;
+  /* 画布与卡片 */
+  --canvas-dot: #dfe3ea;
+  --card-bg: #ffffff;
+  --card-border: #e4e7ec;
+  --card-border-hover: #cfd6e0;
+  --card-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 2px 6px -2px rgba(16, 24, 40, 0.06);
+  --card-shadow-hover: 0 2px 4px rgba(16, 24, 40, 0.04), 0 10px 24px -8px rgba(16, 24, 40, 0.16);
+  --card-shadow-selected: 0 0 0 3px rgba(79, 70, 229, 0.14), 0 10px 28px -10px rgba(16, 24, 40, 0.24);
+  --card-shadow-focused: 0 0 0 4px rgba(109, 40, 217, 0.13), 0 16px 36px -18px rgba(76, 29, 149, 0.35);
+  --card-highlight: rgba(16, 24, 40, 0.05);
+  --muted-opacity: 0.32;
+  --float-bg: rgba(255, 255, 255, 0.94);
+  --float-border: rgba(228, 231, 236, 0.9);
+  --float-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px -12px rgba(16, 24, 40, 0.18);
+  --status-ring: rgba(16, 24, 40, 0.08);
+
+  /* 节点类型的图标块 / 角标 */
+  --node-host-fill: #fff6ed;
+  --node-host-stroke: #f79009;
+  --node-host-accent: #b54708;
+  --node-network-fill: #ecfdf3;
+  --node-network-stroke: #12b76a;
+  --node-network-accent: #027a48;
+  --node-summary-fill: #eef4ff;
+  --node-summary-stroke: #6366f1;
+  --node-summary-accent: #4338ca;
+  --node-group-fill: #f0f9ff;
+  --node-group-stroke: #0ba5ec;
+  --node-group-accent: #026aa2;
+  --node-process-fill: #f8fafc;
+  --node-process-stroke: #98a2b3;
+  --node-process-accent: #475467;
+  --node-service-fill: #f4f3ff;
+  --node-service-stroke: #7a5af8;
+  --node-service-accent: #5925dc;
+  --node-instance-fill: #f9f5ff;
+  --node-instance-stroke: #9e77ed;
+  --node-instance-accent: #6941c6;
+  --node-container-fill: #ecfdf3;
+  --node-container-stroke: #027a48;
+  --node-container-accent: #027a48;
+  --node-subject-fill: #fdf2fa;
+  --node-subject-stroke: #ee46bc;
+  --node-subject-accent: #c11574;
+}
+
+.atlas-graph-root[data-theme="dark"] {
+  --canvas-dot: rgba(90, 116, 154, 0.3);
+  --card-bg: linear-gradient(180deg, #101c2f 0%, #0c1626 100%);
+  --card-border: #223350;
+  --card-border-hover: #334a6a;
+  --card-shadow: 0 12px 32px -18px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  --card-shadow-hover: 0 2px 4px rgba(0, 0, 0, 0.35), 0 16px 36px -16px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --card-shadow-selected: 0 0 0 3px rgba(139, 92, 246, 0.24), 0 16px 40px -18px rgba(76, 29, 149, 0.55);
+  --card-shadow-focused: 0 0 0 4px rgba(139, 92, 246, 0.26), 0 0 40px -8px rgba(139, 92, 246, 0.5),
+    0 18px 44px -20px #000;
+  --card-highlight: rgba(255, 255, 255, 0.07);
+  --muted-opacity: 0.26;
+  --float-bg: rgba(12, 20, 34, 0.92);
+  --float-border: rgba(34, 51, 80, 0.95);
+  --float-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.9);
+
+  --node-host-fill: #2a1f0d;
+  --node-host-stroke: #fbbf24;
+  --node-host-accent: #fcd34d;
+  --node-network-fill: #0c2a22;
+  --node-network-stroke: #34d399;
+  --node-network-accent: #6ee7b7;
+  --node-summary-fill: #1b1638;
+  --node-summary-stroke: #a78bfa;
+  --node-summary-accent: #ddd6fe;
+  --node-group-fill: #0b2333;
+  --node-group-stroke: #38bdf8;
+  --node-group-accent: #7dd3fc;
+  --node-process-fill: #16233a;
+  --node-process-stroke: #8ea1ba;
+  --node-process-accent: #c9d6e8;
+  --node-service-fill: #1b1638;
+  --node-service-stroke: #a78bfa;
+  --node-service-accent: #ddd6fe;
+  --node-instance-fill: #231a3d;
+  --node-instance-stroke: #c4b5fd;
+  --node-instance-accent: #ddd6fe;
+  --node-container-fill: #0c2a22;
+  --node-container-stroke: #34d399;
+  --node-container-accent: #6ee7b7;
+  --node-subject-fill: #2a1424;
+  --node-subject-stroke: #f472b6;
+  --node-subject-accent: #fbcfe8;
+}
+
+.atlas-graph-root .tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 细滚动条，避免默认那条粗灰带把卡片边线切断 */
+.atlas-graph-root .atlas-canvas {
+  background-color: var(--color-canvas);
+  background-image: radial-gradient(circle, var(--canvas-dot) 0.7px, transparent 0.8px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}
+
+.atlas-graph-root[data-theme="dark"] .atlas-canvas {
+  background-image:
+    radial-gradient(95% 70% at 52% 42%, rgba(35, 53, 84, 0.55) 0%, rgba(10, 18, 32, 0.9) 56%, #070d18 100%),
+    radial-gradient(circle, var(--canvas-dot) 0.7px, transparent 0.8px);
+  background-size: auto, 22px 22px;
+}
+
+/* 画布上的节点卡。样式集中在 CSS 里，是因为它有 9 种内容变体，
+   但「卡片的物理规则」（描边、阴影、选中、聚焦、变淡）必须完全一致。 */
+.atlas-graph-root .node-card {
+  background: var(--card-bg);
+  border-color: var(--card-border);
+  box-shadow: var(--card-shadow);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    opacity 140ms ease,
+    transform 140ms ease;
+  cursor: pointer;
+}
+
+.atlas-graph-root .node-card::before {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--card-highlight), transparent);
+  pointer-events: none;
+}
+
+.atlas-graph-root .node-card:hover {
+  border-color: var(--card-border-hover);
+  box-shadow: var(--card-shadow-hover);
+  transform: translateY(-1px);
+}
+
+.atlas-graph-root .node-card:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-brand) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.atlas-graph-root .node-card-selected {
+  border-color: var(--color-brand);
+  box-shadow: var(--card-shadow-selected);
+}
+
+.atlas-graph-root .node-card[data-focused="true"] {
+  border-color: var(--color-brand);
+  box-shadow: var(--card-shadow-focused);
+}
+
+.atlas-graph-root .node-card-dimmed {
+  opacity: var(--muted-opacity);
+  filter: saturate(0.7);
+}
+
+/* 顶栏 / 左栏 / 检查器 / 状态栏的外壳 */
+.atlas-graph-root .floating-bar {
+  background: var(--float-bg);
+  border: 1px solid var(--float-border);
+  box-shadow: var(--float-shadow);
+  backdrop-filter: blur(8px);
+}
+
+/* 状态点：颜色 + 一圈光晕，浅/深色都由令牌决定 */
+.atlas-graph-root .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+
+.atlas-graph-root .dot.ok {
+  background: var(--color-ok);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-ok) 15%, transparent);
+}
+
+.atlas-graph-root .dot.warn {
+  background: var(--color-warn);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warn) 16%, transparent);
+}
+
+.atlas-graph-root .dot.danger {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-danger) 15%, transparent);
+}
+
+.atlas-graph-root .dot.unknown {
+  background: var(--color-ink-faint);
+  box-shadow: none;
+}
+
+/* 小图表：折线用品牌色，填充用同色低透明度 */
+.atlas-graph-root .sparkline {
+  display: block;
+  width: 100%;
+  overflow: visible;
+}
+
+.atlas-graph-root .sparkline path.line {
+  fill: none;
+  stroke: var(--color-brand);
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.atlas-graph-root .sparkline path.area {
+  fill: color-mix(in srgb, var(--color-brand) 12%, transparent);
+  stroke: none;
+}

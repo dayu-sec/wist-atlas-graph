@@ -1,0 +1,21 @@
+/*! tailwindcss v4.3.5 | MIT License | https://tailwindcss.com */
+:root, :host {
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New',
+    monospace;
+  --color-canvas: #f7f8fa;
+}
+.flex {
+  display: flex;
+}
+.h-screen {
+  height: 100vh;
+}
+.bg-canvas {
+  background-color: var(--color-canvas);
+}
+.font-mono {
+  font-family: var(--font-mono);
+}
+.text-\[10\.5px\] {
+  font-size: 10.5px;
+}

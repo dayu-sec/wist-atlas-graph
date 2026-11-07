@@ -4,6 +4,25 @@
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.2.0] - 2026-11-07
+
+### Added
+
+- **画布层（`./ui`）**：`TopologyCanvas`、`NodeCard`、`NodeDetailPanel`、`CanvasToolbar`、
+  `FocusBar`、`StatusDot` / `StatusPill`、`Sparkline`、图标，以及 `useAppState`（选中 / 聚焦 /
+  搜索 / 图层）与 `graphToCyElements`。
+- **`GraphRoot`**：画布视觉的作用域根。必须包在画布与详情面板外层，并传入 `theme`。
+- **自带样式 `./styles.css`**：Tailwind 在包内编译，产物整体收进 `.atlas-graph-root` 作用域
+  （选择器 + 设计令牌都加前缀），宿主不需要安装 Tailwind，也不会被 `.hidden` / `--font-mono`
+  这类全局名字污染。
+- `Theme` 类型（`'light' | 'dark'`），画布不再依赖宿主主题 hook。
+
+### Changed
+
+- 依赖：`react` / `react-dom` / `cytoscape` 为 peer（`^19` / `^19` / `^3.30`），
+  `cytoscape-cose-bilkent` / `cytoscape-dagre` 为直接依赖。
+- `wist-atlas-web` 删除本地画布组件（约 2700 行），改为从 `./ui` 引入；像素级比对与迁移前一致。
+
 ## [0.1.0] - 2026-11-07
 
 ### Added

@@ -7,6 +7,7 @@
  */
 
 export * from './types/domain';
+export * from './types/theme';
 export * from './utils/presentation';
 export * from './utils/status';
 export * from './utils/telemetry';

@@ -1,6 +1,6 @@
 {
   "name": "@dayu-sec/wist-atlas-graph",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "wist-atlas 的图谱内核：领域类型、版式算法、图元素构建、状态口径与注入式只读 API 客户端。不含 React、不含页面外壳。",
   "type": "module",
   "license": "Apache-2.0",
@@ -18,7 +18,12 @@
       "types": "./dist/utils/focus-layout.d.ts",
       "default": "./dist/utils/focus-layout.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./styles.css": "./dist/atlas-graph.css",
+    "./ui": {
+      "types": "./dist/ui/index.d.ts",
+      "default": "./dist/ui/index.js"
+    }
   },
   "files": [
     "dist",
@@ -27,15 +32,23 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "build": "rm -rf dist && tsc -p tsconfig.build.json && npm run build:css",
     "check-types": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "build:css": "tailwindcss -i src/styles.css -o dist/atlas-graph.css && node scripts/scope-css.mjs"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.3.5",
+    "@types/cytoscape": "^3.21.9",
+    "@types/cytoscape-dagre": "^2.3.4",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "postcss": "^8.5.32",
+    "tailwindcss": "^4.3.5",
     "tsx": "^4.19.0",
-    "typescript": "^5.9.0",
-    "@types/node": "^24.12.2"
+    "typescript": "^5.9.0"
   },
   "engines": {
     "node": ">=20"
@@ -43,5 +56,14 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/dayu-sec/wist-atlas-graph.git"
+  },
+  "peerDependencies": {
+    "cytoscape": "^3.30.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "cytoscape-cose-bilkent": "^4.1.0",
+    "cytoscape-dagre": "^2.5.0"
   }
 }
