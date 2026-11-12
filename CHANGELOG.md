@@ -4,6 +4,25 @@
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.6.0] - 2026-11-12
+
+### Added
+
+- **`useTopologyView({ autoSelectFirstHost: false })`**："总览优先" 的宿主（如 `wist-field-web`）
+  不再自动选中第一台主机。以前主机列表回来后会把 `hostId` 设成第一台，于是首屏拉了
+  两次图（先全量总览、再焦点）且画布与顶栏选择器对不上：选择器显示某台主机、画布却是资产总览。
+  默认 `true`（迁移前行为，独立 atlas 页不受影响）。
+
+### Changed
+
+- **进程分组改成"展开主机时"才拉**：`GET /topology/host/{id}/process-overview` 以前一进页面
+  就给图里**每台**主机各发一条（12 台机 = 12 份完整主机视图），而总览画布一张分组卡都不画，
+  展开某台主机时才真正需要。
+- **主机明细改成按需**：`GET /topology/host/{id}` 以前无条件取「图里第一台主机」，
+  现在只在**单机焦点图**或**用户点开某台主机**时才取。顺带修了总览页规模数字的口径：
+  `processCount` / `segmentCount` / `groupCount` / `serviceCount` 以前会取到那一台主机的数，
+  现在回退到 `metadata` 的全局规模（`processCount` 已经是全场进程数）。
+
 ## [0.5.1] - 2026-11-07
 
 ### Added

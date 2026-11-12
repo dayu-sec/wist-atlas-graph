@@ -45,6 +45,15 @@ export type TopologyViewOptions = {
   fixture?: string;
   /** Esc 先退聚焦、再收详情。宿主自己处理 Esc 时可关掉。 */
   handleEscape?: boolean;
+  /**
+   * 没给 `initialHostId` 时，主机列表回来后是否自动选中第一台。
+   *
+   * `true`（默认）是迁移前的老行为：适合「进来就盯一台机」的独立 atlas 页。
+   * `false` 留给「总览优先」的宿主（如 field-web）：画布保持资产总览，
+   * 顶栏选中项也停在「全部主机（总览）」，不会先拉一次全量总览、
+   * 再因为自动选中主机把这张大图重新拉一遍。
+   */
+  autoSelectFirstHost?: boolean;
 };
 
 export type TopologyViewState = {
@@ -111,7 +120,14 @@ export type TopologyViewState = {
 };
 
 export function useTopologyView(options: TopologyViewOptions): TopologyViewState {
-  const { client, initialHostId = '', demo = false, fixture, handleEscape = true } = options;
+  const {
+    client,
+    initialHostId = '',
+    demo = false,
+    fixture,
+    handleEscape = true,
+    autoSelectFirstHost = true,
+  } = options;
   const [state, dispatch] = useAppState({
     processFilter: readStoredFilter(PROCESS_FILTER_KEY, PROCESS_FILTERS),
     networkFilter: readStoredFilter(NETWORK_FILTER_KEY, NETWORK_FILTERS),
@@ -156,14 +172,14 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     client.fetchHosts().then((res) => {
       if (cancelled || res.status !== 'ok') return;
       setHosts(res.data.hosts);
-      if (!initialHostId) {
+      if (!initialHostId && autoSelectFirstHost) {
         setHostId((current) => current || res.data.hosts[0]?.id || '');
       }
     });
     return () => {
       cancelled = true;
     };
-  }, [client, fixture, initialHostId]);
+  }, [client, fixture, initialHostId, autoSelectFirstHost]);
 
   const loadData = useCallback(() => {
     dispatch({ type: 'FETCH_GRAPH_START' });
@@ -290,13 +306,25 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
 
   const selectedNode =
     displayGraph?.nodes.find((node) => node.id === state.selectedNodeId) ?? null;
+  const hostNodes = useMemo(
+    () => displayGraph?.nodes.filter((node) => node.objectKind === 'HostInventory') ?? [],
+    [displayGraph],
+  );
   // 左栏资产卡要的是「当前这张图的主机」，不是「当前选中的节点」。
-  const primaryHostNode =
-    displayGraph?.nodes.find((node) => node.objectKind === 'HostInventory') ?? null;
+  const primaryHostNode = hostNodes[0] ?? null;
+
+  // 资产卡 / 主机详情要的那台主机（`GET /topology/host/{id}`）：
+  // - 单主机焦点图：就是这台 —— 资产卡的进程分组、详情面板都靠它；
+  // - 资产总览（多主机）：只有用户真的点开某台主机时才取。以前这里无条件取第一台，
+  //   首屏会白拿一份完整主机明细（上千进程的机器就是几百 KB~几 MB），而总览根本不展示它。
+  const hostDetailNode = useMemo(() => {
+    if (hostNodes.length === 1) return hostNodes[0];
+    return hostNodes.find((node) => node.id === state.selectedNodeId) ?? null;
+  }, [hostNodes, state.selectedNodeId]);
 
   useEffect(() => {
     if (fixture) return;
-    const hostObjectId = primaryHostNode?.objectId;
+    const hostObjectId = hostDetailNode?.objectId;
     if (!hostObjectId) {
       dispatch({ type: 'FETCH_HOST_TOPOLOGY_SUCCESS', hostTopology: null });
       return;
@@ -308,14 +336,19 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
         dispatch({ type: 'FETCH_HOST_TOPOLOGY_SUCCESS', hostTopology: res.data });
       }
     });
-  }, [client, dispatch, fixture, primaryHostNode?.objectId, state.hostTopology?.host.id]);
+  }, [client, dispatch, fixture, hostDetailNode?.objectId, state.hostTopology?.host.id]);
 
+  // 主机卡上的「进程分组」只在真的展开那台机时才需要：按需拉，不要一上来给
+  // 图里每台机都发一条 `process-overview`（12 台机就是 12 份完整主机视图）。
   useEffect(() => {
     if (fixture) return;
     if (!state.graph) return;
 
-    const hostNodes = state.graph.nodes.filter((node) => node.objectKind === 'HostInventory');
-    for (const hostNode of hostNodes) {
+    const graphHostNodes = state.graph.nodes.filter(
+      (node) => node.objectKind === 'HostInventory',
+    );
+    for (const hostNode of graphHostNodes) {
+      if (!expandedHosts.has(hostNode.id)) continue;
       if (overviewGroupsByHost[hostNode.objectId]) continue;
       client
         .fetchHostProcessOverview(hostNode.objectId, PROCESS_GROUP_DISPLAY_LIMIT)
@@ -331,7 +364,7 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
           });
         });
     }
-  }, [client, fixture, state.graph, overviewGroupsByHost]);
+  }, [client, fixture, state.graph, expandedHosts, overviewGroupsByHost]);
 
   /**
    * 运行时卡片有两种意图：点卡片是「看详情」，点卡片底部的「展开进程分组」才是「铺开」。
