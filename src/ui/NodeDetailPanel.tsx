@@ -120,7 +120,7 @@ export default function NodeDetailPanel({
         <TelemetrySection node={node} telemetry={telemetry} demo={demo} />
 
         {node.objectKind === 'HostInventory' && hostTopology?.host.id === node.objectId ? (
-          <HostDetail topology={hostTopology} />
+          <HostDetail topology={hostTopology} node={node} />
         ) : node.objectKind === 'NetworkSegment' ? (
           <NetworkDetail node={node} graph={graph} />
         ) : node.objectKind === 'ServiceEntity' ? (
@@ -282,7 +282,14 @@ function TelemetrySection({
   );
 }
 
-function HostDetail({ topology }: { topology: HostTopologyDto }) {
+function HostDetail({
+  topology,
+  node,
+}: {
+  topology: HostTopologyDto
+  /** 节点的 `properties` 里带端侧标记（`agentd` / `agentdHealth` / `agentdObservedAt`）。 */
+  node: HostProcessTopologyNode
+}) {
   const os = [topology.host.osName, topology.host.osVersion].filter(Boolean).join(' ');
   const containers = topology.containers ?? [];
 
@@ -293,6 +300,39 @@ function HostDetail({ topology }: { topology: HostTopologyDto }) {
         <Field label="架构">{topology.host.arch ?? '未采集'}</Field>
         <Field label="机器 ID">
           <span className="font-mono text-[10px] break-all">{topology.host.machineId ?? '—'}</span>
+        </Field>
+        <Field label="云实例">
+          {topology.host.cloudInstanceId ? (
+            <span className="font-mono text-[10px] break-all">
+              {topology.host.cloudInstanceId}
+              {topology.host.cloudAccount ? (
+                <span className="text-ink-faint"> · {topology.host.cloudAccount}</span>
+              ) : null}
+            </span>
+          ) : (
+            '未归并到云账号'
+          )}
+        </Field>
+      </Section>
+
+      <Section title="采集">
+        <Field label="端侧">
+          {node.properties.agentd === true ? (
+            <span>
+              agentd
+              {typeof node.properties.agentdHealth === 'string' ? (
+                <span className="text-ink-faint"> · {node.properties.agentdHealth}</span>
+              ) : null}
+              {typeof node.properties.agentdObservedAt === 'string' ? (
+                <span className="text-ink-faint">
+                  {' '}
+                  · 最近 {formatRelative(node.properties.agentdObservedAt)}
+                </span>
+              ) : null}
+            </span>
+          ) : (
+            <span className="text-ink-faint">未检测到 agentd（只有云采集）</span>
+          )}
         </Field>
       </Section>
 

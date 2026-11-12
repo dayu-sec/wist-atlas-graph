@@ -78,6 +78,10 @@ export type HostTopologyHost = {
   osVersion?: string | null;
   /** CPU 架构（`aarch64` / `x86_64`）。M1 之后的后端才有，老数据为 null。 */
   arch?: string | null;
+  /** 云侧实例 ID。有它说明这台机跟云账号资产归并上了（不是纯端侧发现）。 */
+  cloudInstanceId?: string | null;
+  /** 云账号归属（`vendor:AccountId`）。只有云侧来源才有。 */
+  cloudAccount?: string | null;
 };
 
 export type ProcessStateCountDto = {

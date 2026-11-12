@@ -4,6 +4,22 @@
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)，版本号遵循
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [0.7.0] - 2026-11-13
+
+### Added
+
+- **主机卡上的「agentd」角标**：主机有端侧采集（agentd 上报的运行时）时，卡片标题右侧出现
+  一个 `agentd` 角标，颜色跟随 agent 健康：绿=正在报，黄=degraded/protect（它自己在要求和
+  人看一眼），红=unavailable（装过但报不上来，这也解释了为什么这台机没有进程树）。
+  悬停给出最近观测时刻 ——「装过」和「还在报」是两件事。
+- **主机详情抽屉加「采集」段**：端侧是 `agentd · healthy · 最近 3 分钟前`，还是
+  `未检测到 agentd（只有云采集）`；同时补了「云实例」（`cloudInstanceId` / `cloudAccount`），
+  于是「云上资产 + 装没装 agent」一眼可见。
+- `HostTopologyHost` 增加 `cloudInstanceId` / `cloudAccount` 两个可选字段。
+
+数据由后端挂在主机节点属性上（`agentd` / `agentdHealth` / `agentdObservedAt`），
+五个视图（单主机、总览、网段、服务、异步导出）口径一致。
+
 ## [0.6.0] - 2026-11-12
 
 ### Added

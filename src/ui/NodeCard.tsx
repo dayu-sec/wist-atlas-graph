@@ -6,7 +6,7 @@ import {
   parseTopPrograms,
   shortCidr,
 } from '../index';
-import { ArrowRightIcon, KindGlyph } from './icons';
+import { ArrowRightIcon, KindGlyph, TerminalGlyph } from './icons';
 import { basename, formatCount, formatRelative } from '../index';
 import { formatMbps, type NodeTelemetry } from '../index';
 import type { NodeStatus } from '../index';
@@ -149,6 +149,49 @@ function CardBody({
   }
 }
 
+/**
+ * 「这台机上有 agentd」的角标。
+ *
+ * 判据在后端：主机有运行时报文（启动时间 / 负载 / 内存只有 agent 能采）。云 API 只给
+ * 静态资产属性，所以「有运行时」= 端侧在报。
+ *
+ * 三种读法对应三种颜色：
+ * - `healthy` → 绿：正在报；
+ * - `degraded` / `protect` → 黄：在报，但自己想要人看一眼；
+ * - `unavailable` → 红：装过但报不上来（这也解释了为什么这台机没有进程树）。
+ *
+ * 悬停给最近观测时刻：`agentd` 标记只说「装过」，说不说「还在报」得靠时间。
+ */
+function AgentdBadge({ node }: { node: HostProcessTopologyNode }) {
+  const health = typeof node.properties.agentdHealth === 'string' ? node.properties.agentdHealth : '';
+  const observedAt =
+    typeof node.properties.agentdObservedAt === 'string' ? node.properties.agentdObservedAt : '';
+  const tone =
+    health === 'unavailable'
+      ? { fill: 'var(--color-danger-soft)', stroke: 'var(--color-danger-strong)' }
+      : health === 'degraded' || health === 'protect'
+        ? { fill: 'var(--color-warn-soft)', stroke: 'var(--color-warn-strong)' }
+        : { fill: 'var(--color-ok-soft)', stroke: 'var(--color-ok-strong)' };
+  const title = [
+    '边缘采集：这台机上有 agentd 在报',
+    health ? `状态 ${health}` : null,
+    observedAt ? `最近观测 ${formatRelative(observedAt)}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  return (
+    <span
+      className="inline-flex shrink-0 items-center gap-1 rounded-[5px] px-1.5 py-0.5 text-[9.5px] font-medium leading-none"
+      style={{ backgroundColor: tone.fill, color: tone.stroke }}
+      title={title}
+    >
+      <TerminalGlyph className="size-2.5" />
+      agentd
+    </span>
+  );
+}
+
 function MicroLabel({ children }: { children: React.ReactNode }) {
   return (
     <span className="text-[9.5px] font-medium uppercase leading-none tracking-[0.08em] text-ink-faint">
@@ -194,6 +237,9 @@ function HostCard({
             <span className="shrink-0 rounded-[5px] bg-subtle px-1.5 py-0.5 text-[9.5px] font-medium leading-none text-ink-soft">
               本机
             </span>
+            {node.properties.agentd === true ? (
+              <AgentdBadge node={node} />
+            ) : null}
           </div>
           <p className="mt-1 truncate text-[11px] leading-4 text-ink-mute">
             {os || '系统信息未采集'}
