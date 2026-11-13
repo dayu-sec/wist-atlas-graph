@@ -14,6 +14,7 @@ import {
 import { buildSearchIndex, countMatches } from '../utils/search';
 import { buildTelemetry } from '../utils/telemetry';
 import { classifyProcessName } from '../utils/process-kind';
+import { networkScopeHostCount } from '../utils/network-scope';
 import { countHealth, freshnessStatus, resolveNodeStatus } from '../utils/status';
 import { loadFixture as loadLocalFixture } from '../api/client';
 import type { AtlasClient } from '../api/client';
@@ -27,6 +28,25 @@ import type {
   LoadedProcessGroupsState,
   NodeKind,
 } from '../types/domain';
+
+/** 一层下钻目标：主机 / 网段 / 服务。`path` 是它们的栈。 */
+export type TopologyLevel = {
+  kind: 'host' | 'network' | 'service';
+  id: string;
+  label: string;
+};
+
+/** 从拉回来的图里认出当前这一层的名字（主机名 / 网段 CIDR / 服务名）。 */
+function levelLabel(kind: TopologyLevel['kind'], graph: HostProcessTopologyGraph | null): string {
+  if (!graph) return '';
+  if (kind === 'network') {
+    return graph.nodes.find((node) => node.objectKind === 'NetworkSegment')?.label ?? '';
+  }
+  if (kind === 'service') {
+    return graph.nodes.find((node) => node.objectKind === 'ServiceEntity')?.label ?? '';
+  }
+  return graph.nodes.find((node) => node.objectKind === 'HostInventory')?.label ?? '';
+}
 
 /**
  * 一张拓扑视图的全部状态与动作。
@@ -88,6 +108,26 @@ export type TopologyViewState = {
   layerVisibility: Record<LayerKind, boolean>;
   processFilter: 'all' | 'user' | 'system';
   networkFilter: 'all' | 'shared' | 'host';
+  /**
+   * 当前「只看这个网段」的筛选：选中共享网段时设置，点空白 / Esc 清除。
+   * `null` = 全景（不按网段收窄）。
+   */
+  networkFocus: { id: string; label: string; hostCount: number } | null;
+  /** 下钻到网段 / 服务那一层时给面包屑用；主机层为 null（主机名在 `path` 里）。 */
+  drilldown: { kind: 'network' | 'service'; id: string; label: string } | null;
+  /** 从总览往下钻的完整路径（不含总览）：`总览 / 主机 A / 网段 X`。 */
+  path: TopologyLevel[];
+  /** 退一层（历史栈 pop）；已经在总览时无动作。 */
+  back: () => void;
+  /** 跳回路径上的某一段：`-1` = 总览。 */
+  goTo: (index: number) => void;
+  /** 画布上双击主机：下钻一层（选择器那种「跳转」用 `setHostId`）。 */
+  drillIntoHost: (hostId: string) => void;
+
+  /** 长按节点弹出的详情悬浮卡；null = 没弹。 */
+  cardNode: HostProcessTopologyNode | null;
+  openCard: (nodeId: string) => void;
+  closeCard: () => void;
   processViewMode: ReturnType<typeof getProcessViewMode>;
   loadedProcessGroups: LoadedProcessGroupsState | null;
 
@@ -114,6 +154,9 @@ export type TopologyViewState = {
   toggleLayer: (layer: LayerKind) => void;
   setProcessFilter: (filter: 'all' | 'user' | 'system') => void;
   setNetworkFilter: (filter: 'all' | 'shared' | 'host') => void;
+  clearNetworkFocus: () => void;
+  /** 回到「全部主机（总览）」：清掉下钻 / 网段筛选。 */
+  backToOverview: () => void;
   openNetwork: (segmentObjectId: string) => void;
   openService: (serviceObjectId: string) => void;
   clearError: () => void;
@@ -141,7 +184,18 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
   useEffect(() => {
     writeStoredFilter(NETWORK_FILTER_KEY, state.networkFilter);
   }, [state.networkFilter]);
-  const [hostId, setHostId] = useState(initialHostId);
+  // 下钻路径（不含总览）：总览 → 主机 A → 网段 X。
+  // 所有「换层」只改这一样东西，拉数据统一由 `loadData` 的 effect 做（一次换层一个请求）。
+  const [path, setPath] = useState<TopologyLevel[]>(() =>
+    initialHostId ? [{ kind: 'host', id: initialHostId, label: '' }] : [],
+  );
+  const lastLevel = path.length > 0 ? path[path.length - 1] : null;
+  // 被依赖的是 is two primitives，不是数组（否则补上 label 也会触发重新拉图）。
+  const lastKind = lastLevel?.kind ?? 'root';
+  const lastId = lastLevel?.id ?? '';
+  const hostId = lastLevel?.kind === 'host' ? lastLevel.id : '';
+  // 主动换层的计数器：目标没变（例如从网段视图回总览，本来就不在主机层）时也要真的重拉一次。
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [hosts, setHosts] = useState<HostSummaryDto[]>([]);
   const [expandedHosts, setExpandedHosts] = useState<Set<string>>(new Set());
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
@@ -154,6 +208,11 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     Record<string, LoadedProcessGroupsState>
   >({});
   const [groupPageLoadingByHost, setGroupPageLoadingByHost] = useState<Record<string, boolean>>({});
+  // 选中的共享网段：画布收窄到「这个网里有哪些主机」。与 `selectedNodeId` 分开存，
+  // 因为「先点网段、再点里面的某台主机」不应该把刚筛好的范围又打回全景。
+  const [networkFocusId, setNetworkFocusId] = useState<string | null>(null);
+  // 详情悬浮卡：长按节点 2 秒弹出，不占画布一列；点空白 / Esc / ✕ 关闭。
+  const [cardNodeId, setCardNodeId] = useState<string | null>(null);
 
   /** 换图时把「展开 / 分页」这类跟具体图绑定的临时状态一起清掉。 */
   const resetExpansion = useCallback(() => {
@@ -173,7 +232,12 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
       if (cancelled || res.status !== 'ok') return;
       setHosts(res.data.hosts);
       if (!initialHostId && autoSelectFirstHost) {
-        setHostId((current) => current || res.data.hosts[0]?.id || '');
+        // 默认选第一台：仅限总览（还没下钻）时。
+        setPath((current) =>
+          current.length > 0 || !res.data.hosts[0]
+            ? current
+            : [{ kind: 'host', id: res.data.hosts[0].id, label: res.data.hosts[0].hostName }],
+        );
       }
     });
     return () => {
@@ -182,11 +246,21 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
   }, [client, fixture, initialHostId, autoSelectFirstHost]);
 
   const loadData = useCallback(() => {
+    setCardNodeId(null);
     dispatch({ type: 'FETCH_GRAPH_START' });
     const done = (res: Awaited<ReturnType<AtlasClient['fetchHostProcessTopology']>>) => {
       if (res.status === 'ok') {
         resetExpansion();
         setExpandedServices(new Set());
+        // 当前这一层的名字（主机名 / 网段 CIDR / 服务名）只有图里有，拉回来再补进路径。
+        // 不把 path 放进依赖，否则补标签会再触发一轮拉图。
+        setPath((current) => {
+          if (current.length === 0) return current;
+          const last = current[current.length - 1];
+          const label = levelLabel(last.kind, res.data);
+          if (!label || label === last.label) return current;
+          return [...current.slice(0, -1), { ...last, label }];
+        });
         dispatch({ type: 'FETCH_GRAPH_SUCCESS', graph: res.data });
         // 只在新图换了主机时清空资产卡：无条件清空会和资产卡加载抢跑。
         dispatch({
@@ -204,79 +278,88 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
       return;
     }
 
-    const host = hostId.trim() || initialHostId;
-    if (!host) {
-      client.fetchFirstHostProcessTopology().then(done);
+    if (lastKind === 'network') {
+      client.fetchNetworkTopology(lastId).then(done);
       return;
     }
-    client.fetchHostProcessTopology(host).then(done);
-  }, [client, dispatch, fixture, hostId, initialHostId, resetExpansion]);
+    if (lastKind === 'service') {
+      client.fetchServiceTopology(lastId).then(done);
+      return;
+    }
+    if (lastKind === 'host') {
+      client.fetchHostProcessTopology(lastId).then(done);
+      return;
+    }
+    // 空路径 = 总览：后端把 first 快照当作整张资产图。
+    client.fetchFirstHostProcessTopology().then(done);
+  }, [client, dispatch, fixture, lastId, lastKind, reloadNonce, resetExpansion]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  /** 空串 = 回到「全部主机（总览）」：后端把 first 快照当作整张资产图。 */
+  /** 换到另一层：清掉上一层的临时态（详情卡 / 网段筛选），并触发一次拉图。 */
+  const changePath = useCallback((next: TopologyLevel[]) => {
+    setCardNodeId(null);
+    setNetworkFocusId(null);
+    setPath(next);
+    setReloadNonce((current) => current + 1);
+  }, []);
+
+  /** 顶栏选择器 / 宿主直接定位：从总览跳到某台主机（**替换**路径，不叠加历史）。 */
   const openHost = useCallback(
     (nextHostId: string) => {
       const trimmed = nextHostId.trim();
-      setHostId(trimmed);
-      dispatch({ type: 'FETCH_GRAPH_START' });
-      const done = (res: Awaited<ReturnType<AtlasClient['fetchHostProcessTopology']>>) => {
-        if (res.status === 'ok') {
-          resetExpansion();
-          setExpandedServices(new Set());
-          dispatch({ type: 'FETCH_GRAPH_SUCCESS', graph: res.data });
-        } else {
-          dispatch({ type: 'FETCH_GRAPH_ERROR', error: `[${res.code}] ${res.message}` });
-        }
-      };
-      if (!trimmed) {
-        client.fetchFirstHostProcessTopology().then(done);
-        return;
-      }
-      client.fetchHostProcessTopology(trimmed).then(done);
+      changePath(trimmed ? [{ kind: 'host', id: trimmed, label: '' }] : []);
     },
-    [client, dispatch, resetExpansion],
+    [changePath],
   );
+
+  /** 画布上双击主机：往下钻一层（当前层留在历史里，返回能回到它）。 */
+  const drillIntoHost = useCallback((nextHostId: string) => {
+    const trimmed = nextHostId.trim();
+    if (!trimmed) return;
+    setCardNodeId(null);
+    setNetworkFocusId(null);
+    setPath((current) => {
+      const last = current[current.length - 1];
+      if (last?.kind === 'host' && last.id === trimmed) return current;
+      return [...current, { kind: 'host', id: trimmed, label: '' }];
+    });
+    setReloadNonce((current) => current + 1);
+  }, []);
 
   /** 切到「这个网段里有哪些机器」。节点点进来拿节点上的 objectId，走表单时拿输入值。 */
-  const openNetwork = useCallback(
-    (segmentObjectId: string) => {
-      const trimmed = segmentObjectId.trim();
-      if (!trimmed) return;
-      dispatch({ type: 'FETCH_GRAPH_START' });
-      client.fetchNetworkTopology(trimmed).then((res) => {
-        if (res.status === 'ok') {
-          resetExpansion();
-          setExpandedServices(new Set());
-          dispatch({ type: 'FETCH_GRAPH_SUCCESS', graph: res.data });
-        } else {
-          dispatch({ type: 'FETCH_GRAPH_ERROR', error: `[${res.code}] ${res.message}` });
-        }
-      });
-    },
-    [client, dispatch, resetExpansion],
-  );
+  const openNetwork = useCallback((segmentObjectId: string) => {
+    const trimmed = segmentObjectId.trim();
+    if (!trimmed) return;
+    setCardNodeId(null);
+    setNetworkFocusId(null);
+    setPath((current) => [...current, { kind: 'network', id: trimmed, label: '' }]);
+    setReloadNonce((current) => current + 1);
+  }, []);
 
   /** 切到「这个服务跑在哪些主机上」。 */
-  const openService = useCallback(
-    (serviceObjectId: string) => {
-      const trimmed = serviceObjectId.trim();
-      if (!trimmed) return;
-      dispatch({ type: 'FETCH_GRAPH_START' });
-      client.fetchServiceTopology(trimmed).then((res) => {
-        if (res.status === 'ok') {
-          resetExpansion();
-          setExpandedServices(new Set());
-          dispatch({ type: 'FETCH_GRAPH_SUCCESS', graph: res.data });
-        } else {
-          dispatch({ type: 'FETCH_GRAPH_ERROR', error: `[${res.code}] ${res.message}` });
-        }
-      });
-    },
-    [client, dispatch, resetExpansion],
-  );
+  const openService = useCallback((serviceObjectId: string) => {
+    const trimmed = serviceObjectId.trim();
+    if (!trimmed) return;
+    setCardNodeId(null);
+    setNetworkFocusId(null);
+    setPath((current) => [...current, { kind: 'service', id: trimmed, label: '' }]);
+    setReloadNonce((current) => current + 1);
+  }, []);
+
+  /** 退一层（历史栈 pop）。 */
+  const back = useCallback(() => {
+    setPath((current) => current.slice(0, -1));
+    setReloadNonce((current) => current + 1);
+  }, []);
+
+  /** 点面包屑的某一段：`-1` = 总览，其余是路径下标。 */
+  const goTo = useCallback((index: number) => {
+    setPath((current) => current.slice(0, Math.max(0, index + 1)));
+    setReloadNonce((current) => current + 1);
+  }, []);
 
   // 关键：选中节点/输入搜索词都会让宿主重渲染。displayGraph 每次重建会让画布的
   // 「图结构签名」每次都变，点一下节点就重新布局 —— 所以只依赖真正的结构输入。
@@ -312,6 +395,46 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
   );
   // 左栏资产卡要的是「当前这张图的主机」，不是「当前选中的节点」。
   const primaryHostNode = hostNodes[0] ?? null;
+
+  // 是不是「资产总览」那张图（只有主机 + 共享网段）。网段筛选只在这张图上有意义：
+  // 单主机视图里网段是这台机自己的接口，收窄会把进程树一起藏掉。
+  const overviewGraph = useMemo(
+    () =>
+      Boolean(displayGraph) &&
+      (displayGraph?.nodes.every(
+        (node) => node.objectKind === 'HostInventory' || node.objectKind === 'NetworkSegment',
+      ) ??
+        false),
+    [displayGraph],
+  );
+
+  // 「只看这个网段」：给画布收窄，也给顶部状态条显示「N 台主机」。
+  // 图换了（比如切主机）旧 id 就不在了，这里自然回落成 null。
+  const networkFocus = useMemo(() => {
+    if (!networkFocusId || !displayGraph || !overviewGraph) return null;
+    const segment = displayGraph.nodes.find((node) => node.id === networkFocusId);
+    if (!segment) return null;
+    return {
+      id: networkFocusId,
+      label: segment.label,
+      hostCount: networkScopeHostCount(displayGraph, networkFocusId),
+    };
+  }, [displayGraph, networkFocusId, overviewGraph]);
+
+  // 悬浮卡展示的节点：图换了 / 节点不在了就自然消失，不用额外清理。
+  const cardNode = useMemo(
+    () => (cardNodeId ? (displayGraph?.nodes.find((node) => node.id === cardNodeId) ?? null) : null),
+    [displayGraph, cardNodeId],
+  );
+  const openCard = useCallback(
+    (nodeId: string) => {
+      setCardNodeId(nodeId);
+      // 弹卡也算选中：卡片贴着节点，节点不亮会很怪。
+      dispatch({ type: 'SELECT_NODE', nodeId });
+    },
+    [dispatch],
+  );
+  const closeCard = useCallback(() => setCardNodeId(null), []);
 
   // 资产卡 / 主机详情要的那台主机（`GET /topology/host/{id}`）：
   // - 单主机焦点图：就是这台 —— 资产卡的进程分组、详情面板都靠它；
@@ -387,6 +510,19 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
 
   const handleSelectNode = useCallback(
     (nodeId: string | null) => {
+      // 选到别的节点就收起悬浮卡：卡片永远只跟当前这个节点。
+      if (nodeId !== cardNodeId) setCardNodeId(null);
+      // 选共享网段 = 只看这个网段的主机；点空白清掉。选主机**不**清（见 networkFocusId）。
+      if (nodeId === null) {
+        setNetworkFocusId(null);
+      } else if (
+        // 只有总览图里「选网段」才等于筛选；单机 / 网段视图里网段只是接口，
+        // 弹那条状态条但画布不变，会让人以为坏了。
+        overviewGraph &&
+        displayGraph?.nodes.find((node) => node.id === nodeId)?.objectKind === 'NetworkSegment'
+      ) {
+        setNetworkFocusId(nodeId);
+      }
       if (nodeId && nodeId.startsWith(PROCESS_SUMMARY_PREFIX)) {
         dispatch({ type: 'SELECT_NODE', nodeId });
         return;
@@ -455,7 +591,17 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
       }
       dispatch({ type: 'SELECT_NODE', nodeId });
     },
-    [client, dispatch, groupPageLoadingByHost, loadedGroupsByHost, overviewGroupsByHost, state.graph],
+    [
+      client,
+      cardNodeId,
+      dispatch,
+      displayGraph,
+      groupPageLoadingByHost,
+      loadedGroupsByHost,
+      overviewGraph,
+      overviewGroupsByHost,
+      state.graph,
+    ],
   );
 
   const focusNode = useCallback(
@@ -464,16 +610,40 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
   );
   const clearFocus = useCallback(() => dispatch({ type: 'CLEAR_FOCUS' }), [dispatch]);
 
+  /** 回到「全部主机（总览）」：主机下钻 / 网段下钻 / 服务下钻都走这里。 */
+  const backToOverview = useCallback(() => {
+    setNetworkFocusId(null);
+    goTo(-1);
+  }, [goTo]);
+
   useEffect(() => {
     if (!handleEscape) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
       if (state.focusNodeId) dispatch({ type: 'CLEAR_FOCUS' });
-      else dispatch({ type: 'SELECT_NODE', nodeId: null });
+      else if (cardNodeId) {
+        // 先关卡片，再取消选中：一次 Esc 只退一层。
+        setCardNodeId(null);
+        dispatch({ type: 'SELECT_NODE', nodeId: null });
+      } else if (networkFocusId) {
+        setNetworkFocusId(null);
+        dispatch({ type: 'SELECT_NODE', nodeId: null });
+      } else if (path.length > 0) {
+        // 再往外一层：主机 → 网段 → 服务一路退回去（有历史栈，不是直接回总览）。
+        back();
+      } else dispatch({ type: 'SELECT_NODE', nodeId: null });
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [dispatch, handleEscape, state.focusNodeId]);
+  }, [
+    back,
+    cardNodeId,
+    dispatch,
+    handleEscape,
+    networkFocusId,
+    path.length,
+    state.focusNodeId,
+  ]);
 
   const graphNodes = useMemo(() => displayGraph?.nodes ?? [], [displayGraph]);
   const presentLayers = useMemo(() => {
@@ -601,6 +771,17 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     layerVisibility: state.layerVisibility,
     processFilter: state.processFilter,
     networkFilter: state.networkFilter,
+    networkFocus,
+    /** 从总览往下钻的路径（不含总览）：面包屑与主机选择器都用它。 */
+    path,
+    drilldown:
+      lastLevel && lastLevel.kind !== 'host'
+        ? {
+            kind: lastLevel.kind as 'network' | 'service',
+            id: lastLevel.id,
+            label: lastLevel.label,
+          }
+        : null,
     processViewMode: getProcessViewMode(selectedNode, loadedGroupsByHost, groupPageLoadingByHost),
     loadedProcessGroups: getSelectedLoadedProcessGroups(selectedNode, loadedGroupsByHost),
     segmentCount,
@@ -613,6 +794,7 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     hostMetrics,
     refresh: loadData,
     setHostId: openHost,
+    drillIntoHost,
     selectNode: handleSelectNode,
     expandNode,
     focusNode,
@@ -621,6 +803,15 @@ export function useTopologyView(options: TopologyViewOptions): TopologyViewState
     toggleLayer: (layer) => dispatch({ type: 'TOGGLE_LAYER', layer }),
     setProcessFilter: (filter) => dispatch({ type: 'SET_PROCESS_FILTER', filter }),
     setNetworkFilter: (filter) => dispatch({ type: 'SET_NETWORK_FILTER', filter }),
+    clearNetworkFocus: () => setNetworkFocusId(null),
+    backToOverview,
+    /** 退一层（历史栈 pop）。 */
+    back,
+    /** 跳回路径上的某一段：`-1` = 总览。 */
+    goTo,
+    cardNode,
+    openCard,
+    closeCard,
     openNetwork,
     openService,
     clearError: () => dispatch({ type: 'FETCH_GRAPH_ERROR', error: '' }),

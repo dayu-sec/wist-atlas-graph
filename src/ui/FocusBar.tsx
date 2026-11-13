@@ -12,7 +12,7 @@ type Props = {
  */
 export default function FocusBar({ label, onExit, onCenter }: Props) {
   return (
-    <div className="floating-bar flex h-9 items-center gap-2 rounded-[10px] px-2.5 text-[11px] text-brand-strong">
+    <div className="floating-bar pointer-events-auto flex h-9 items-center gap-2 rounded-[10px] px-2.5 text-[11px] text-brand-strong">
       <FocusIcon className="size-3.5 shrink-0" />
       <span className="font-semibold">聚焦</span>
       <span className="text-ink-faint">·</span>

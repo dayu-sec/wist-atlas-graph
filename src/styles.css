@@ -256,6 +256,13 @@
   box-shadow: var(--card-shadow-selected);
 }
 
+/* 详情悬浮卡：用与「选中节点」同一套光边 ——
+   既说明「这张卡是从那颗节点弹出来的」，也让它在画布上能立住（否则就是一块普通面板）。 */
+.atlas-graph-root .node-detail-card {
+  border-color: var(--color-brand);
+  box-shadow: var(--card-shadow-focused);
+}
+
 .atlas-graph-root .node-card[data-focused="true"] {
   border-color: var(--color-brand);
   box-shadow: var(--card-shadow-focused);

@@ -15,6 +15,7 @@ import {
 } from '../index';
 import { nodeDims } from '../index';
 import { passesNetworkFilter, passesProcessFilter, resolveNodeStatus, type NodeStatus } from '../index';
+import { networkScopeIds } from '../utils/network-scope';
 import type { TelemetryMap } from '../index';
 import NodeCard, { type GraphNodeHint, type HostStats } from './NodeCard';
 import { FitIcon, MinusIcon, PlusIcon } from './icons';
@@ -33,6 +34,8 @@ type Props = {
   processFilter?: 'all' | 'user' | 'system';
   /** 网段归属过滤：本机内部（lo / 链路本地 / 虚拟网桥）可以单独看。 */
   networkFilter?: 'all' | 'shared' | 'host';
+  /** 选中了一个共享网段：画布只留该网段 + 它的主机（null = 全景）。 */
+  networkFocusId?: string | null;
   scannedAt?: string | null;
   hostArch?: string | null;
   loading: boolean;
@@ -50,6 +53,10 @@ type Props = {
   onRequestCenter?: (nodeId: string) => void;
   onOpenNetwork?: (segmentObjectId: string) => void;
   onOpenService?: (serviceObjectId: string) => void;
+  /** 长按节点（默认 2s）→ 弹出详情悬浮卡。 */
+  onLongPress?: (nodeId: string) => void;
+  /** 悬浮卡开着时不再浮快捷操作：两个浮层会打架。 */
+  cardOpen?: boolean;
 };
 
 const LAYOUT_OPTIONS: Record<'dagre' | 'cose-bilkent', cytoscape.LayoutOptions> = {
@@ -153,6 +160,10 @@ function buildCyStyle(theme: Theme) {
 const MIN_ZOOM = 0.12;
 const MAX_ZOOM = 2.4;
 const FIT_ZOOM_CAP = 1.08;
+/** 长按多久弹详情卡：太短会误触，2s 是「我想看细节」的明确信号。 */
+const LONG_PRESS_MS = 2000;
+/** 手抖容忍：按住时移动超过这个距离就当拖拽，取消长按。 */
+const LONG_PRESS_SLOP = 8;
 
 export default function TopologyCanvas({
   graph,
@@ -163,6 +174,7 @@ export default function TopologyCanvas({
   layerVisibility,
   processFilter = 'all',
   networkFilter = 'all',
+  networkFocusId = null,
   scannedAt,
   hostArch,
   loading,
@@ -170,6 +182,8 @@ export default function TopologyCanvas({
   telemetry,
   focusNodeId,
   onFocusNode,
+  onLongPress,
+  cardOpen = false,
   hostMetrics,
   onOpenHost,
   centerTarget,
@@ -185,8 +199,15 @@ export default function TopologyCanvas({
   const onSelectRef = useRef(onSelectNode);
   const [annotations, setAnnotations] = useState<LaneAnnotation[]>([]);
   const [zoom, setZoom] = useState(1);
+  // 画布宽高比：总览网格要按它决定列数（宽屏多排几列，少留白）。
+  // 量化到 0.25 再进 state：拖窗口时不要每像素重排一次。
+  const [overviewAspect, setOverviewAspect] = useState(1.6);
   // 选中后等一下再浮出快捷操作：刚点开详情抽屉时不和抽屉抢视线。
   const [actionsVisible, setActionsVisible] = useState(false);
+  // 长按：按住 2s 弹详情卡。计时器与「这一次已经触发过」各一个，
+  // 后者用来吃掉松手后紧跟的那个 click（否则还会走一次选中）。
+  const longPressTimer = useRef(0);
+  const longPressFired = useRef<string | null>(null);
 
   useEffect(() => {
     onSelectRef.current = onSelectNode;
@@ -200,16 +221,19 @@ export default function TopologyCanvas({
 
   const visibleGraph = useMemo(() => {
     if (!graph) return null;
+    // 选中共享网段时收窄到「该网段 + 它的主机」：用户问的是「这个网里有哪些机器」。
+    const scope = networkScopeIds(graph, networkFocusId);
     const nodes = graph.nodes.filter(
       (node) =>
         layerVisibility[node.layer] &&
         passesProcessFilter(node, processFilter) &&
-        passesNetworkFilter(node, networkFilter, ifaceByNodeId.get(node.id)?.ifaceName),
+        passesNetworkFilter(node, networkFilter, ifaceByNodeId.get(node.id)?.ifaceName) &&
+        (!scope || scope.has(node.id)),
     );
     const ids = new Set(nodes.map((node) => node.id));
     const edges = graph.edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target));
     return { nodes, edges, metadata: graph.metadata } satisfies HostProcessTopologyGraph;
-  }, [graph, layerVisibility, processFilter, networkFilter, ifaceByNodeId]);
+  }, [graph, layerVisibility, processFilter, networkFilter, networkFocusId, ifaceByNodeId]);
 
   /**
    * App 每次渲染（包括选中节点）都会重建 graph 对象。如果 effect 直接依赖它，
@@ -227,9 +251,11 @@ export default function TopologyCanvas({
 
   const hints = useMemo(() => buildNetworkHints(visibleGraph), [visibleGraph]);
   // 多主机 = 总览：这里的主机卡代表「进入一台机器」，双击直接下钻。
+  // 判据用未收窄的全图：按网段收窄后可能只剩 1 台，但它仍是总览里的子集，
+  // 双击不该跟着变成「展开进程」。
   const overview = useMemo(
-    () => (visibleGraph?.nodes.filter((node) => node.objectKind === 'HostInventory').length ?? 0) > 1,
-    [visibleGraph],
+    () => (graph?.nodes.filter((node) => node.objectKind === 'HostInventory').length ?? 0) > 1,
+    [graph],
   );
   const searchIndex = useMemo(() => buildSearchIndex(visibleGraph), [visibleGraph]);
 
@@ -244,9 +270,8 @@ export default function TopologyCanvas({
     if (!visibleGraph) return undefined;
     // 这些数字是「当前这张图的汇总」，不是「某一台主机的指标」。图上多于一台主机时
     // （网段视图 / 总览）它们描不进某一张卡，不如不传 —— 卡片会回退到节点自带的属性。
-    const hostCount = visibleGraph.nodes.filter(
-      (node) => node.objectKind === 'HostInventory',
-    ).length;
+    // 同样用未收窄的全图标数：收窄到单台主机时也不该把全图汇总描到那台卡上。
+    const hostCount = graph?.nodes.filter((node) => node.objectKind === 'HostInventory').length ?? 0;
     if (hostCount !== 1) return undefined;
     const summary = visibleGraph.nodes.find((node) => node.objectKind === 'ProcessSummary');
     return {
@@ -258,7 +283,7 @@ export default function TopologyCanvas({
       arch: hostArch ?? null,
       scannedAt: scannedAt ?? null,
     };
-  }, [visibleGraph, scannedAt, hostArch]);
+  }, [graph, visibleGraph, scannedAt, hostArch]);
 
   const statusByNodeId = useMemo(() => {
     const statuses = new Map<string, NodeStatus>();
@@ -361,8 +386,8 @@ export default function TopologyCanvas({
       const elements = node.closedNeighborhood();
       if (elements.length === 0) return;
       const box = elements.boundingBox() as { x1: number; y1: number; w: number; h: number };
-      // 右侧 inspector 是覆盖层：镜头要往左让出 336px，不然焦点卡片会被抽屉压住。
-      const inset = selectedNodeId ? 336 : 0;
+      // 悬浮卡贴着节点，镜头不再为抽屉让位。
+      const inset = 0;
       const pad = 72;
       const availableWidth = Math.max(240, cy.width() - inset - pad * 2);
       const availableHeight = Math.max(240, cy.height() - pad * 2);
@@ -416,6 +441,12 @@ export default function TopologyCanvas({
       // 首次布局时容器可能还没拿到最终高度（cytoscape 初始化那一刻 height=0），
       // fit 只能横向居中，整张图会被顶到画布上沿。尺寸变化后必须重新 fit。
       cy.resize();
+      const width = cy.width();
+      const height = cy.height();
+      if (width > 0 && height > 0) {
+        const aspect = Math.round((width / height) * 4) / 4;
+        setOverviewAspect((prev) => (Math.abs(prev - aspect) >= 0.25 ? aspect : prev));
+      }
       window.requestAnimationFrame(() => {
         const focusId = focusNodeIdRef.current;
         if (focusId) fitFocusRef.current(focusId);
@@ -454,8 +485,8 @@ export default function TopologyCanvas({
     cy.add(graphToCyElements(current));
 
     const focus =
-      // 多主机先走总览网格：主机 + 共享网段，按视口宽高比铺开。
-      computeOverviewLayout(current) ??
+      // 多主机先走总览网格：主机 + 共享网段，按画布宽高比铺开。
+      computeOverviewLayout(current, overviewAspect) ??
       computeFocusLayout(current) ??
       computeServiceLayout(current) ??
       computeRuntimeLayout(current);
@@ -479,8 +510,9 @@ export default function TopologyCanvas({
     instance.one('layoutstop', () => fitViewRef.current());
     instance.run();
     // 只按结构签名重排：graph 的对象身份每次 App 渲染都会变，不能进依赖。
+    // `overviewAspect` 变了（换窗口大小）要重排：总览的列数是它算出来的。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [graphSignature]);
+  }, [graphSignature, overviewAspect]);
 
 
   // 「居中」：把某张卡片放到可视区中心。详情抽屉是覆盖层，要按它的宽度让位。
@@ -562,6 +594,14 @@ export default function TopologyCanvas({
         id: 'center',
         label: '居中',
         run: () => onRequestCenter(selectedNode.id),
+      });
+    }
+    if (onLongPress) {
+      // 长按不是所有人都知道；选中等 2 秒后浮出的这一行里再给一个入口。
+      actions.push({
+        id: 'detail',
+        label: '详情',
+        run: () => onLongPress(selectedNode.id),
       });
     }
     return actions;
@@ -669,13 +709,41 @@ export default function TopologyCanvas({
                   ? `${node.label} · 双击进入这台主机的拓扑`
                   : undefined
               }
-              onDoubleClick={
-                overview && node.objectKind === 'HostInventory' && onOpenHost
-                  ? () => onOpenHost(node.objectId)
-                  : undefined
-              }
+              onPointerDown={(event) => {
+                if (!onLongPress || event.button !== 0) return;
+                const nodeId = node.id;
+                const startX = event.clientX;
+                const startY = event.clientY;
+                const cancel = () => {
+                  window.clearTimeout(longPressTimer.current);
+                  longPressTimer.current = 0;
+                  window.removeEventListener('pointermove', onMove);
+                  window.removeEventListener('pointerup', cancel);
+                  window.removeEventListener('pointercancel', cancel);
+                };
+                const onMove = (move: PointerEvent) => {
+                  if (Math.hypot(move.clientX - startX, move.clientY - startY) > LONG_PRESS_SLOP) {
+                    cancel();
+                  }
+                };
+                window.clearTimeout(longPressTimer.current);
+                longPressTimer.current = window.setTimeout(() => {
+                  longPressFired.current = nodeId;
+                  onLongPress(nodeId);
+                }, LONG_PRESS_MS);
+                window.addEventListener('pointermove', onMove);
+                window.addEventListener('pointerup', cancel);
+                window.addEventListener('pointercancel', cancel);
+              }}
+              onClickCapture={(event) => {
+                // 长按已经弹卡：松手后的 click 不再当成「选中」。
+                if (longPressFired.current !== node.id) return;
+                longPressFired.current = null;
+                event.stopPropagation();
+                event.preventDefault();
+              }}
             >
-              {selectedNodeId === node.id && actionsVisible && quickActions.length > 0 ? (
+              {selectedNodeId === node.id && actionsVisible && quickActions.length > 0 && !cardOpen ? (
                 <div
                   className="absolute bottom-full left-1/2 mb-2.5 flex items-center gap-0.5 rounded-[9px] border border-line bg-surface/95 px-1 py-0.5 shadow-[0_8px_24px_-12px_rgba(0,0,0,0.55)] backdrop-blur"
                   style={{
@@ -683,6 +751,7 @@ export default function TopologyCanvas({
                     transformOrigin: 'center bottom',
                   }}
                   onClick={(event) => event.stopPropagation()}
+                  onPointerDown={(event) => event.stopPropagation()}
                 >
                   {quickActions.map((action) => (
                     <button
@@ -742,6 +811,20 @@ export default function TopologyCanvas({
                 status={statusByNodeId.get(node.id) ?? { tone: 'unknown', label: '未采集' }}
                 telemetry={telemetry.nodes[node.id]}
                 onSelect={onSelectNode}
+                onActivate={(nodeId) => {
+                  // 总览里双击 = 进入下一层：主机 → 进这台机；网段 → 只看这个网段。
+                  // 其余节点保持原来的「聚焦」。
+                  if (!overview) return onFocusNode(nodeId);
+                  if (node.objectKind === 'HostInventory' && onOpenHost) {
+                    onOpenHost(node.objectId);
+                    return;
+                  }
+                  if (node.objectKind === 'NetworkSegment') {
+                    onSelectNode(nodeId);
+                    return;
+                  }
+                  onFocusNode(nodeId);
+                }}
                 onExpand={onExpandNode}
                 onFocus={onFocusNode}
                 onHover={handleHover}
@@ -773,7 +856,6 @@ export default function TopologyCanvas({
 
       <ZoomControls
         zoom={zoom}
-        shifted={Boolean(selectedNodeId)}
         onZoomIn={() => zoomBy(1)}
         onZoomOut={() => zoomBy(-1)}
         onReset={resetZoom}
@@ -809,25 +891,19 @@ export default function TopologyCanvas({
 
 function ZoomControls({
   zoom,
-  shifted,
   onZoomIn,
   onZoomOut,
   onReset,
   onFit,
 }: {
   zoom: number;
-  shifted: boolean;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onReset: () => void;
   onFit: () => void;
 }) {
   return (
-    <div
-      className={`absolute bottom-4 z-20 flex items-center gap-0.5 rounded-[10px] border border-line bg-surface/95 p-0.5 shadow-[0_1px_2px_rgba(16,24,40,0.05),0_4px_12px_-4px_rgba(16,24,40,0.12)] backdrop-blur transition-[right] duration-200 ${
-        shifted ? 'right-[352px]' : 'right-4'
-      }`}
-    >
+    <div className="absolute bottom-4 right-4 z-20 flex items-center gap-0.5 rounded-[10px] border border-line bg-surface/95 p-0.5 shadow-[0_1px_2px_rgba(16,24,40,0.05),0_4px_12px_-4px_rgba(16,24,40,0.12)] backdrop-blur">
       <ZoomButton label="缩小" onClick={onZoomOut}>
         <MinusIcon className="size-3.5" />
       </ZoomButton>

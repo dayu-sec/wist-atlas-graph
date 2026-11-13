@@ -24,7 +24,18 @@ function reducer(state: AppState, action: AppAction): AppState {
     case 'FETCH_GRAPH_START':
       return { ...state, loading: true, error: null };
     case 'FETCH_GRAPH_SUCCESS':
-      return { ...state, loading: false, graph: action.graph, focusNodeId: null };
+      // 换了图：选中的节点不一定还在。在就留着（刷新同一张图不该丢掉高亮），
+      // 不在就清掉 —— 否则会一直指着一个已不存在的 id（弹卡、快捷键都跟着错）。
+      return {
+        ...state,
+        loading: false,
+        graph: action.graph,
+        focusNodeId: null,
+        selectedNodeId:
+          state.selectedNodeId && action.graph.nodes.some((node) => node.id === state.selectedNodeId)
+            ? state.selectedNodeId
+            : null,
+      };
     case 'FETCH_HOST_TOPOLOGY_SUCCESS':
       return { ...state, hostTopology: action.hostTopology };
     case 'CLEAR_HOST_TOPOLOGY_UNLESS':

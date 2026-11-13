@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import type {
   HostProcessTopologyGraph,
   HostProcessTopologyNode,
@@ -38,6 +39,10 @@ type Props = {
   focused: boolean;
   onFocus: () => void;
   onExitFocus: () => void;
+  /** 展示形态：`drawer` = 贴右边整高（默认）；`card` = 浮在节点旁的卡片。 */
+  variant?: 'drawer' | 'card';
+  /** 卡片模式下由画布给的位置 / 最大高度。 */
+  style?: CSSProperties;
 };
 
 export default function NodeDetailPanel({
@@ -58,6 +63,8 @@ export default function NodeDetailPanel({
   focused,
   onFocus,
   onExitFocus,
+  variant = 'drawer',
+  style: boxStyle,
 }: Props) {
   if (!node) return null;
 
@@ -70,7 +77,14 @@ export default function NodeDetailPanel({
         : node.label;
 
   return (
-    <aside className="bg-shell absolute inset-y-0 right-0 z-30 flex w-[336px] flex-col border-l border-line shadow-[-12px_0_32px_-24px_rgba(0,0,0,0.45)]">
+    <aside
+      style={boxStyle}
+      className={
+        variant === 'card'
+          ? 'node-detail-card bg-shell absolute z-30 flex w-[340px] flex-col overflow-hidden rounded-xl border'
+          : 'bg-shell absolute inset-y-0 right-0 z-30 flex w-[336px] flex-col border-l border-line shadow-[-12px_0_32px_-24px_rgba(0,0,0,0.45)]'
+      }
+    >
       <header className="flex items-start gap-2.5 border-b border-line px-4 py-3.5">
         <span
           className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-[8px]"

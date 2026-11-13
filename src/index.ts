@@ -16,6 +16,7 @@ export * from './utils/colors';
 export * from './utils/format';
 export * from './utils/process-kind';
 export * from './utils/network-kind';
+export * from './utils/network-scope';
 export * from './utils/focus-layout';
 export * from './display/build-display-graph';
 export * from './api/client';

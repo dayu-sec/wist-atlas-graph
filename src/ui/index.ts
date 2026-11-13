@@ -11,6 +11,8 @@ export { default as NodeCard } from './NodeCard';
 export { default as NodeDetailPanel } from './NodeDetailPanel';
 export { default as CanvasToolbar } from './CanvasToolbar';
 export { default as FocusBar } from './FocusBar';
+export { default as NetworkBar } from './NetworkBar';
+export { default as BackBar } from './BackBar';
 export { default as StatusDot, StatusPill } from './StatusDot';
 export { default as Sparkline } from './Sparkline';
 export * from './icons';

@@ -37,6 +37,8 @@ type Props = {
   status: NodeStatus;
   telemetry?: NodeTelemetry;
   onSelect: (nodeId: string) => void;
+  /** 双击 / 回车以外的「进入」：总览里是进主机，其余回退成聚焦。 */
+  onActivate?: (nodeId: string) => void;
   onExpand?: (nodeId: string) => void;
   onFocus: (nodeId: string) => void;
   onHover: (nodeId: string | null) => void;
@@ -57,6 +59,7 @@ export default function NodeCard({
   status,
   telemetry,
   onSelect,
+  onActivate,
   onExpand,
   onFocus,
   onHover,
@@ -83,7 +86,9 @@ export default function NodeCard({
       }}
       onDoubleClick={(event) => {
         event.stopPropagation();
-        onFocus(node.id);
+        // 双击是「进入下一层」：总览里进主机 / 只看这个网段，其它节点才是聚焦。
+        // 以前这里直接调 `onFocus`，把外层「双击进入主机」的意图盖掉了。
+        (onActivate ?? onFocus)(node.id);
       }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return;

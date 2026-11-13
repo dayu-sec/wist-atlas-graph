@@ -590,7 +590,11 @@ function centerComposition(
  * 字全糊。总览的信息层级其实只有两层：主机、以及被多台主机共享的网段
  * （只属于某台主机的接口在装配阶段就被收起来了，见 `buildDisplayGraph`）。
  */
-export function computeOverviewLayout(graph: HostProcessTopologyGraph): FocusLayout | null {
+export function computeOverviewLayout(
+  graph: HostProcessTopologyGraph,
+  /** 画布宽高比（宽 / 高）。不传按 16:9 算。 */
+  targetAspect = 1.6,
+): FocusLayout | null {
   const hosts = graph.nodes
     .filter((node) => node.objectKind === 'HostInventory')
     .sort((left, right) => left.label.localeCompare(right.label, 'en'));
@@ -615,11 +619,12 @@ export function computeOverviewLayout(graph: HostProcessTopologyGraph): FocusLay
     );
 
   const hostDims = nodeDims('HostInventory');
-  // 列数按 16:9 的目标画布算，而不是量当前画布 ——
-  // 首次布局时容器可能还没有最终尺寸，量出来会把 5 台主机排成 2 列。
-  const OVERVIEW_TARGET_ASPECT = 1.6;
+  // 列数按**画布的实际宽高比**算：宽屏多排几列，否则按 16:9 排出来的高网格
+  // 只能按高度缩放，左右会白出两大块。首次布局时容器可能还没尺寸，调用方回落 1.6。
+  const aspect = Number.isFinite(targetAspect) && targetAspect > 0.4 ? targetAspect : 1.6;
+  const OVERVIEW_TARGET_ASPECT = Math.min(2.6, Math.max(1, aspect));
   const columns = Math.min(
-    6,
+    8,
     Math.max(
       1,
       Math.ceil(
